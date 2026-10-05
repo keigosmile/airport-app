@@ -1,0 +1,512 @@
+<title>空港制覇</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* Layout: 出発案内板のような空港タイルを地方ごとに並べ、下部タブで「一覧／統計／データ」を切り替える1画面アプリ */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #15203a;
+  --muted: #637091;
+  --line: #d6dce8;
+  --accent: #e8a200;          /* 案内板のアンバー */
+  --accent-ink: #15203a;
+  --lv1: #fdf0cc;  --lv1-ink: #6a4a00;
+  --lv2: #f6c552;  --lv2-ink: #3a2a00;
+  --lv3: #15203a;  --lv3-ink: #ffc43a;
+  --danger: #b3261e;
+  --font-body: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --font-code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1220; --surface: #161f33; --ink: #e9edf6; --muted: #93a0bd; --line: #2a3550;
+    --accent: #ffbf2e; --accent-ink: #0c1220;
+    --lv1: #3a3016; --lv1-ink: #ffd877;
+    --lv2: #8a6510; --lv2-ink: #fff1c8;
+    --lv3: #ffbf2e; --lv3-ink: #0c1220;
+    --danger: #ff8a80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1220; --surface: #161f33; --ink: #e9edf6; --muted: #93a0bd; --line: #2a3550;
+  --accent: #ffbf2e; --accent-ink: #0c1220;
+  --lv1: #3a3016; --lv1-ink: #ffd877;
+  --lv2: #8a6510; --lv2-ink: #fff1c8;
+  --lv3: #ffbf2e; --lv3-ink: #0c1220;
+  --danger: #ff8a80;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ヘッダー：出発案内板風 */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--lv3); color: var(--lv3-ink); padding: 14px 16px 12px; }
+.top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; max-width: 760px; margin: 0 auto; }
+.brand { font-size: 13px; letter-spacing: .18em; font-weight: 700; }
+.brand small { display: block; letter-spacing: .08em; font-weight: 500; opacity: .75; font-size: 11px; }
+.score { font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 700; line-height: 1; }
+.score span { font-size: 16px; opacity: .7; }
+.bar { max-width: 760px; margin: 10px auto 0; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--lv3-ink) 22%, transparent); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--lv3-ink); width: 0; transition: width .4s ease; }
+.basis { max-width: 760px; margin: 10px auto 0; display: flex; gap: 6px; }
+.basis button { border: 1px solid color-mix(in srgb, var(--lv3-ink) 45%, transparent); background: transparent; color: var(--lv3-ink); border-radius: 999px; padding: 3px 12px; font-size: 12px; }
+.basis button[aria-pressed="true"] { background: var(--lv3-ink); color: var(--lv3); }
+
+main { max-width: 760px; margin: 0 auto; padding: 14px 16px 110px; }
+.view[hidden] { display: none; }
+
+/* 一覧 */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+.legend b { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+.region { margin-top: 18px; }
+.region h2 { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--ink); }
+.region h2 span { font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 6px; }
+.tile { position: relative; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 8px 6px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; }
+.tile .code { font-family: var(--font-code); font-size: 11px; letter-spacing: .08em; opacity: .7; }
+.tile .nm { font-weight: 700; font-size: 15px; line-height: 1.2; word-break: keep-all; }
+.tile .st { position: absolute; top: 6px; right: 7px; font-size: 10px; padding: 0 5px; border-radius: 4px; border: 1px solid currentColor; opacity: .7; }
+.tile[data-lv="1"] { background: var(--lv1); color: var(--lv1-ink); border-color: transparent; }
+.tile[data-lv="2"] { background: var(--lv2); color: var(--lv2-ink); border-color: transparent; }
+.tile[data-lv="3"] { background: var(--lv3); color: var(--lv3-ink); border-color: transparent; }
+.tile[data-off="1"][data-lv="0"] { color: var(--muted); border-style: dashed; }
+.empty-note { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+/* 統計 */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.stat b { display: block; font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 24px; line-height: 1.1; }
+.stat small { color: var(--muted); font-size: 12px; }
+h3 { font-size: 14px; margin: 22px 0 8px; }
+.rbar { display: grid; grid-template-columns: 7.5em 1fr 4.5em; align-items: center; gap: 8px; font-size: 13px; margin: 5px 0; }
+.rbar .track { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.rbar .track i { display: block; height: 100%; background: var(--accent); }
+.rbar .n { font-family: var(--font-code); font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.list li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.list li:first-child { border-top: 0; }
+.list .n { font-family: var(--font-code); font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* データ */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.panel h3 { margin: 0 0 6px; }
+.panel p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); font-family: var(--font-code); font-size: 12px; }
+.btn { border: 0; border-radius: 8px; padding: 9px 14px; background: var(--ink); color: var(--bg); font-weight: 600; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: var(--danger); color: #fff; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.msg { font-size: 13px; margin-top: 8px; min-height: 1.2em; }
+#shareImg { display: block; width: 100%; max-width: 420px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--line); }
+
+/* 下部タブ */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.tabs button { flex: 1; max-width: 200px; border: 0; background: transparent; padding: 12px 0 13px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--accent); }
+
+/* 記録シート */
+.scrim { position: fixed; inset: 0; background: rgba(8, 12, 22, .45); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+.sheet-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.sheet h2 { margin: 0; font-size: 20px; }
+.sheet .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.close { border: 0; background: var(--bg); border-radius: 999px; width: 32px; height: 32px; font-size: 18px; line-height: 1; flex: none; }
+.board { margin-top: 12px; display: flex; gap: 8px; align-items: center; background: var(--lv3); color: var(--lv3-ink); border-radius: 8px; padding: 8px 10px; font-family: var(--font-code); font-size: 13px; }
+.board strong { font-size: 22px; letter-spacing: .12em; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+.seg button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 10px 4px; font-size: 13px; font-weight: 600; }
+.seg button small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+.seg button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.seg button[aria-pressed="true"] small { color: inherit; opacity: .8; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.fields label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fields input { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); min-width: 0; width: 100%; }
+.fields .wide { grid-column: 1 / -1; }
+.visits { margin-top: 18px; }
+.visits h3 { margin: 0 0 6px; }
+.visit { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.visit .meta { min-width: 0; }
+.visit .meta small { display: block; color: var(--muted); }
+.mini { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 4px 9px; font-size: 12px; flex: none; }
+.mini.warn { border-color: var(--danger); color: var(--danger); }
+.toast { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 20; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brand">空港制覇<small>国内空港めぐり記録</small></div>
+    <div class="score" id="score">0<span>/97</span></div>
+  </div>
+  <div class="bar"><i id="barFill"></i></div>
+  <div class="basis" role="group" aria-label="数え方">
+    <button type="button" id="basisAll" aria-pressed="true">全97空港</button>
+    <button type="button" id="basisActive" aria-pressed="false">定期便のある空港</button>
+  </div>
+</header>
+
+<main>
+  <section class="view" id="viewList">
+    <div class="filters" role="group" aria-label="表示の絞り込み">
+      <button type="button" class="chip" data-f="all" aria-pressed="true">すべて</button>
+      <button type="button" class="chip" data-f="todo" aria-pressed="false">未訪問</button>
+      <button type="button" class="chip" data-f="done" aria-pressed="false">訪問済み</button>
+    </div>
+    <div class="legend">
+      <span><b style="background:var(--lv1)"></b>行った</span>
+      <span><b style="background:var(--lv2)"></b>乗り継いだ</span>
+      <span><b style="background:var(--lv3)"></b>発着した</span>
+      <span>点線：定期便なし・休止中</span>
+    </div>
+    <div id="regions"></div>
+  </section>
+
+  <section class="view" id="viewStats" hidden>
+    <div class="stat-row">
+      <div class="stat"><b id="stDone">0</b><small>制覇した空港</small></div>
+      <div class="stat"><b id="stVisits">0</b><small>記録した回数</small></div>
+      <div class="stat"><b id="stLv3">0</b><small>発着した空港</small></div>
+    </div>
+    <h3>地方別</h3>
+    <div id="stRegions"></div>
+    <h3>よく使う空港</h3>
+    <ul class="list" id="stTop"></ul>
+    <h3>年ごとの新規制覇</h3>
+    <ul class="list" id="stYears"></ul>
+    <h3>シェア画像</h3>
+    <div class="panel">
+      <p>今の制覇状況を1枚の画像にします。画像を長押しすると保存できます。</p>
+      <button type="button" class="btn" id="makeShare">画像を作る</button>
+      <img id="shareImg" alt="空港制覇の状況をまとめた画像" hidden>
+    </div>
+  </section>
+
+  <section class="view" id="viewData" hidden>
+    <div class="panel">
+      <h3>書き出し（バックアップ）</h3>
+      <p>記録をすべて文字データにします。コピーしてメモアプリなどに保存しておけば、いつでも元に戻せます。</p>
+      <textarea id="exportText" readonly aria-label="書き出したデータ"></textarea>
+      <div class="btns"><button type="button" class="btn" id="copyExport">コピーする</button></div>
+      <div class="msg" id="exportMsg"></div>
+    </div>
+    <div class="panel">
+      <h3>読み込み（復元）</h3>
+      <p>書き出したデータを貼り付けるか、ファイルを選んでください。今の記録は読み込んだ内容に置き換わります。</p>
+      <textarea id="importText" placeholder="ここに貼り付け" aria-label="読み込むデータ"></textarea>
+      <div class="btns">
+        <input type="file" id="importFile" accept=".json,application/json,text/plain" hidden>
+        <button type="button" class="btn ghost" id="pickFile">ファイルを選ぶ</button>
+        <button type="button" class="btn" id="doImport">読み込む</button>
+      </div>
+      <div class="msg" id="importMsg"></div>
+    </div>
+    <div class="panel">
+      <h3>記録をすべて消す</h3>
+      <p>この端末の記録を消します。先に書き出しておくことをおすすめします。</p>
+      <div class="btns"><button type="button" class="btn ghost" id="resetAsk">すべて消す</button><button type="button" class="btn danger" id="resetDo" hidden>本当に消す</button></div>
+      <div class="msg" id="resetMsg"></div>
+    </div>
+    <p class="empty-note">試作版です。記録はこの端末のブラウザ内に保存されます。アプリ版では、機種変更でも消えない保存方法に切り替えます。</p>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" id="tabList" aria-selected="true">一覧</button>
+  <button type="button" role="tab" id="tabStats" aria-selected="false">統計</button>
+  <button type="button" role="tab" id="tabData" aria-selected="false">データ</button>
+</nav>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetName">
+    <div class="sheet-head">
+      <div>
+        <h2 id="sheetName"></h2>
+        <div class="sub" id="sheetSub"></div>
+      </div>
+      <button type="button" class="close" id="sheetClose" aria-label="閉じる">×</button>
+    </div>
+    <div class="board"><strong id="sheetCode"></strong><span id="sheetStatus"></span></div>
+    <div class="seg" role="group" aria-label="どう利用したか">
+      <button type="button" data-lv="1" aria-pressed="false">行った<small>見学・送迎など</small></button>
+      <button type="button" data-lv="2" aria-pressed="false">乗り継いだ<small>乗り継ぎで通過</small></button>
+      <button type="button" data-lv="3" aria-pressed="true">発着した<small>乗った・降りた</small></button>
+    </div>
+    <div class="fields">
+      <label for="visitYm">いつ（わかれば）<input type="month" id="visitYm"></label>
+      <label for="visitNote">メモ<input type="text" id="visitNote" placeholder="出張、旅行など" maxlength="60"></label>
+    </div>
+    <div class="btns"><button type="button" class="btn" id="addVisit">記録する</button></div>
+    <div class="visits">
+      <h3 id="visitsTitle">これまでの記録</h3>
+      <div id="visitList"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+  // [id, 短縮名, 正式名称, 愛称, 都道府県, 地方, 分類, IATA, 状態]
+  var RAW = [["NRT","成田","成田国際空港","","千葉県","関東・伊豆諸島","会社管理","NRT","active"],["NGO","中部","中部国際空港","セントレア","愛知県","中部","会社管理","NGO","active"],["KIX","関西","関西国際空港","","大阪府","近畿","会社管理","KIX","active"],["ITM","伊丹","大阪国際空港","伊丹空港","大阪府","近畿","会社管理","ITM","active"],["HND","羽田","東京国際空港","羽田空港","東京都","関東・伊豆諸島","国管理","HND","active"],["CTS","新千歳","新千歳空港","","北海道","北海道","国管理","CTS","active"],["WKJ","稚内","稚内空港","","北海道","北海道","国管理","WKJ","active"],["KUH","釧路","釧路空港","たんちょう釧路空港","北海道","北海道","国管理","KUH","active"],["HKD","函館","函館空港","","北海道","北海道","国管理","HKD","active"],["SDJ","仙台","仙台空港","","宮城県","東北","国管理","SDJ","active"],["KIJ","新潟","新潟空港","","新潟県","中部","国管理","KIJ","active"],["HIJ","広島","広島空港","","広島県","中国","国管理","HIJ","active"],["TAK","高松","高松空港","","香川県","四国","国管理","TAK","active"],["MYJ","松山","松山空港","","愛媛県","四国","国管理","MYJ","active"],["KCZ","高知","高知空港","高知龍馬空港","高知県","四国","国管理","KCZ","active"],["FUK","福岡","福岡空港","","福岡県","九州","国管理","FUK","active"],["KKJ","北九州","北九州空港","","福岡県","九州","国管理","KKJ","active"],["NGS","長崎","長崎空港","","長崎県","九州","国管理","NGS","active"],["KMJ","熊本","熊本空港","阿蘇くまもと空港","熊本県","九州","国管理","KMJ","active"],["OIT","大分","大分空港","","大分県","九州","国管理","OIT","active"],["KMI","宮崎","宮崎空港","宮崎ブーゲンビリア空港","宮崎県","九州","国管理","KMI","active"],["KOJ","鹿児島","鹿児島空港","","鹿児島県","九州","国管理","KOJ","active"],["OKA","那覇","那覇空港","","沖縄県","沖縄","国管理","OKA","active"],["AKJ","旭川","旭川空港","","北海道","北海道","特定地方管理","AKJ","active"],["OBO","帯広","帯広空港","とかち帯広空港","北海道","北海道","特定地方管理","OBO","active"],["AXT","秋田","秋田空港","","秋田県","東北","特定地方管理","AXT","active"],["GAJ","山形","山形空港","おいしい山形空港","山形県","東北","特定地方管理","GAJ","active"],["UBJ","山口宇部","山口宇部空港","","山口県","中国","特定地方管理","UBJ","active"],["RIS","利尻","利尻空港","","北海道","北海道","地方管理","RIS","active"],["REBUN","礼文","礼文空港","","北海道","北海道","地方管理","","suspended"],["OIR","奥尻","奥尻空港","","北海道","北海道","地方管理","OIR","active"],["SHB","中標津","中標津空港","根室中標津空港","北海道","北海道","地方管理","SHB","active"],["MBE","紋別","紋別空港","オホーツク紋別空港","北海道","北海道","地方管理","MBE","active"],["MMB","女満別","女満別空港","","北海道","北海道","地方管理","MMB","active"],["AOJ","青森","青森空港","","青森県","東北","地方管理","AOJ","active"],["HNA","花巻","花巻空港","いわて花巻空港","岩手県","東北","地方管理","HNA","active"],["ONJ","大館能代","大館能代空港","あきた北空港","秋田県","東北","地方管理","ONJ","active"],["SYO","庄内","庄内空港","おいしい庄内空港","山形県","東北","地方管理","SYO","active"],["FKS","福島","福島空港","","福島県","東北","地方管理","FKS","active"],["OIM","大島","大島空港","","東京都","関東・伊豆諸島","地方管理","OIM","active"],["NIIJIMA","新島","新島空港","","東京都","関東・伊豆諸島","地方管理","","active"],["KOZUSHIMA","神津島","神津島空港","","東京都","関東・伊豆諸島","地方管理","","active"],["MYE","三宅島","三宅島空港","","東京都","関東・伊豆諸島","地方管理","MYE","active"],["HAC","八丈島","八丈島空港","","東京都","関東・伊豆諸島","地方管理","HAC","active"],["SDS","佐渡","佐渡空港","","新潟県","中部","地方管理","SDS","suspended"],["TOY","富山","富山空港","富山きときと空港","富山県","中部","地方管理","TOY","active"],["NTQ","能登","能登空港","のと里山空港","石川県","中部","地方管理","NTQ","active"],["FKJ","福井","福井空港","","福井県","中部","地方管理","FKJ","no_scheduled"],["MMJ","松本","松本空港","信州まつもと空港","長野県","中部","地方管理","MMJ","active"],["FSZ","静岡","静岡空港","富士山静岡空港","静岡県","中部","地方管理","FSZ","active"],["UKB","神戸","神戸空港","","兵庫県","近畿","地方管理","UKB","active"],["SHM","南紀白浜","南紀白浜空港","","和歌山県","近畿","地方管理","SHM","active"],["TTJ","鳥取","鳥取空港","鳥取砂丘コナン空港","鳥取県","中国","地方管理","TTJ","active"],["OKI","隠岐","隠岐空港","隠岐世界ジオパーク空港","島根県","中国","地方管理","OKI","active"],["IZO","出雲","出雲空港","出雲縁結び空港","島根県","中国","地方管理","IZO","active"],["IWJ","石見","石見空港","萩・石見空港","島根県","中国","地方管理","IWJ","active"],["OKJ","岡山","岡山空港","岡山桃太郎空港","岡山県","中国","地方管理","OKJ","active"],["HSG","佐賀","佐賀空港","九州佐賀国際空港","佐賀県","九州","地方管理","HSG","active"],["TSJ","対馬","対馬空港","対馬やまねこ空港","長崎県","九州","地方管理","TSJ","active"],["OJIKA","小値賀","小値賀空港","","長崎県","九州","地方管理","","suspended"],["FUJ","福江","福江空港","五島つばき空港","長崎県","九州","地方管理","FUJ","active"],["KAMIGOTO","上五島","上五島空港","","長崎県","九州","地方管理","","suspended"],["IKI","壱岐","壱岐空港","","長崎県","九州","地方管理","IKI","active"],["TNE","種子島","種子島空港","","鹿児島県","九州","地方管理","TNE","active"],["KUM","屋久島","屋久島空港","","鹿児島県","九州","地方管理","KUM","active"],["ASJ","奄美","奄美空港","","鹿児島県","九州","地方管理","ASJ","active"],["KKX","喜界","喜界空港","","鹿児島県","九州","地方管理","KKX","active"],["TKN","徳之島","徳之島空港","","鹿児島県","九州","地方管理","TKN","active"],["OKE","沖永良部","沖永良部空港","","鹿児島県","九州","地方管理","OKE","active"],["RNJ","与論","与論空港","","鹿児島県","九州","地方管理","RNJ","active"],["AGJ","粟国","粟国空港","","沖縄県","沖縄","地方管理","AGJ","suspended"],["UEO","久米島","久米島空港","","沖縄県","沖縄","地方管理","UEO","active"],["KJP","慶良間","慶良間空港","","沖縄県","沖縄","地方管理","KJP","no_scheduled"],["MMD","南大東","南大東空港","","沖縄県","沖縄","地方管理","MMD","active"],["KTD","北大東","北大東空港","","沖縄県","沖縄","地方管理","KTD","active"],["IEJ","伊江島","伊江島空港","","沖縄県","沖縄","地方管理","IEJ","no_scheduled"],["MMY","宮古","宮古空港","","沖縄県","沖縄","地方管理","MMY","active"],["SHI","下地島","下地島空港","","沖縄県","沖縄","地方管理","SHI","active"],["TRA","多良間","多良間空港","","沖縄県","沖縄","地方管理","TRA","active"],["ISG","新石垣","新石垣空港","南ぬ島石垣空港","沖縄県","沖縄","地方管理","ISG","active"],["HTR","波照間","波照間空港","","沖縄県","沖縄","地方管理","HTR","suspended"],["OGN","与那国","与那国空港","","沖縄県","沖縄","地方管理","OGN","active"],["CHOFU","調布","調布飛行場","","東京都","関東・伊豆諸島","その他","","active"],["NKM","小牧","名古屋飛行場","県営名古屋空港（小牧）","愛知県","中部","その他","NKM","active"],["TJH","但馬","但馬飛行場","コウノトリ但馬空港","兵庫県","近畿","その他","TJH","active"],["KONAN","岡南","岡南飛行場","","岡山県","中国","その他","","no_scheduled"],["AXJ","天草","天草飛行場","天草空港","熊本県","九州","その他","AXJ","active"],["KENOU","大分県央","大分県央飛行場","","大分県","九州","その他","","no_scheduled"],["YAO","八尾","八尾空港","","大阪府","近畿","その他","","no_scheduled"],["OKD","丘珠","札幌飛行場","丘珠空港","北海道","北海道","共用","OKD","active"],["CHITOSE","千歳","千歳飛行場","","北海道","北海道","共用","","no_scheduled"],["MSJ","三沢","三沢飛行場","三沢空港","青森県","東北","共用","MSJ","active"],["IBR","茨城","百里飛行場","茨城空港","茨城県","関東・伊豆諸島","共用","IBR","active"],["KMQ","小松","小松飛行場","小松空港","石川県","中部","共用","KMQ","active"],["YGJ","米子","美保飛行場","米子鬼太郎空港","鳥取県","中国","共用","YGJ","active"],["IWK","岩国","岩国飛行場","岩国錦帯橋空港","山口県","中国","共用","IWK","active"],["TKS","徳島","徳島飛行場","徳島阿波おどり空港","徳島県","四国","共用","TKS","active"]];
+  var REGIONS = ["北海道", "東北", "関東・伊豆諸島", "中部", "近畿", "中国", "四国", "九州", "沖縄"];
+  var PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","千葉県","東京都","新潟県","富山県","石川県","福井県","長野県","静岡県","愛知県","大阪府","兵庫県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
+  var STATUS_LABEL = { active: "定期便あり", suspended: "定期便休止中", no_scheduled: "定期便なし" };
+  var LV_LABEL = ["未訪問", "行った", "乗り継いだ", "発着した"];
+
+  var AIRPORTS = RAW.map(function (r, i) {
+    return { id: r[0], short: r[1], name: r[2], alias: r[3], pref: r[4], region: r[5], category: r[6], iata: r[7], status: r[8], order: i };
+  });
+  AIRPORTS.sort(function (a, b) { return PREFS.indexOf(a.pref) - PREFS.indexOf(b.pref) || a.order - b.order; });
+  var BY_ID = {};
+  AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
+
+  // ---- 保存（アプリ版ではここだけ差し替える） ----
+  var KEY = "kuukou-seiha.v1";
+  var store = {
+    load: function () { try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
+    save: function (data) { try { localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
+  };
+
+  var state = store.load() || { version: 1, visits: [] };
+  if (!Array.isArray(state.visits)) state = { version: 1, visits: [] };
+  var ui = { filter: "all", basis: "all", tab: "list", sheetId: null, sheetLv: 3, pendingDelete: null };
+
+  function persist() { store.save(state); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function levelOf(id) {
+    var m = 0;
+    for (var i = 0; i < state.visits.length; i++) { var v = state.visits[i]; if (v.airportId === id && v.level > m) m = v.level; }
+    return m;
+  }
+  function visitsOf(id) { return state.visits.filter(function (v) { return v.airportId === id; }); }
+  function inBasis(a) { return ui.basis === "all" || a.status === "active"; }
+  function el(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function fmtYm(ym) { if (!ym) return "日付なし"; var p = ym.split("-"); return p[0] + "年" + Number(p[1]) + "月"; }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = el("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 1800);
+  }
+
+  // ---- ヘッダー ----
+  function renderScore() {
+    var pool = AIRPORTS.filter(inBasis);
+    var done = pool.filter(function (a) { return levelOf(a.id) > 0; }).length;
+    el("score").innerHTML = done + "<span>/" + pool.length + "</span>";
+    el("barFill").style.width = (pool.length ? done / pool.length * 100 : 0) + "%";
+    el("basisAll").setAttribute("aria-pressed", ui.basis === "all");
+    el("basisActive").setAttribute("aria-pressed", ui.basis === "active");
+  }
+
+  // ---- 一覧 ----
+  function renderList() {
+    var html = "";
+    REGIONS.forEach(function (r) {
+      var inRegion = AIRPORTS.filter(function (a) { return a.region === r && inBasis(a); });
+      var done = inRegion.filter(function (a) { return levelOf(a.id) > 0; }).length;
+      var shown = inRegion.filter(function (a) {
+        var lv = levelOf(a.id);
+        return ui.filter === "all" || (ui.filter === "todo" ? lv === 0 : lv > 0);
+      });
+      if (!shown.length) return;
+      html += '<section class="region"><h2>' + esc(r) + "<span>" + done + "/" + inRegion.length + '</span></h2><div class="grid">';
+      shown.forEach(function (a) {
+        var lv = levelOf(a.id), off = a.status !== "active";
+        html += '<button type="button" class="tile" data-id="' + esc(a.id) + '" data-lv="' + lv + '" data-off="' + (off ? 1 : 0) + '" aria-label="' + esc(a.short) + " " + LV_LABEL[lv] + '">' +
+          '<span class="code">' + esc(a.iata || "・・・") + "</span>" +
+          (off ? '<span class="st">' + (a.status === "suspended" ? "休止" : "便なし") + "</span>" : "") +
+          '<span class="nm">' + esc(a.short) + "</span></button>";
+      });
+      html += "</div></section>";
+    });
+    el("regions").innerHTML = html || '<p class="empty-note">' + (ui.filter === "done" ? "まだ記録がありません。空港をタップして記録してみましょう。" : "すべて制覇しました！") + "</p>";
+    document.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-pressed", c.dataset.f === ui.filter); });
+  }
+
+  // ---- 統計 ----
+  function renderStats() {
+    var pool = AIRPORTS.filter(inBasis);
+    var done = pool.filter(function (a) { return levelOf(a.id) > 0; });
+    el("stDone").textContent = done.length;
+    el("stVisits").textContent = state.visits.length;
+    el("stLv3").textContent = pool.filter(function (a) { return levelOf(a.id) === 3; }).length;
+
+    el("stRegions").innerHTML = REGIONS.map(function (r) {
+      var all = pool.filter(function (a) { return a.region === r; });
+      var d = all.filter(function (a) { return levelOf(a.id) > 0; }).length;
+      var pct = all.length ? Math.round(d / all.length * 100) : 0;
+      return '<div class="rbar"><span>' + esc(r) + '</span><span class="track"><i style="width:' + pct + '%"></i></span><span class="n">' + d + "/" + all.length + "</span></div>";
+    }).join("");
+
+    var counts = {};
+    state.visits.forEach(function (v) { counts[v.airportId] = (counts[v.airportId] || 0) + 1; });
+    var top = Object.keys(counts).filter(function (k) { return BY_ID[k]; }).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 5);
+    el("stTop").innerHTML = top.length ? top.map(function (k) { return "<li><span>" + esc(BY_ID[k].short) + '</span><span class="n">' + counts[k] + "回</span></li>"; }).join("") : '<li><span class="n">記録するとここに表示されます</span></li>';
+
+    var first = {};
+    state.visits.forEach(function (v) {
+      var y = v.ym ? v.ym.slice(0, 4) : "日付なし";
+      if (!(v.airportId in first) || (first[v.airportId] === "日付なし" && y !== "日付なし") || (y !== "日付なし" && y < first[v.airportId])) first[v.airportId] = y;
+    });
+    var byYear = {};
+    Object.keys(first).forEach(function (k) { if (BY_ID[k] && inBasis(BY_ID[k])) byYear[first[k]] = (byYear[first[k]] || 0) + 1; });
+    var years = Object.keys(byYear).sort(function (a, b) { return a === "日付なし" ? 1 : b === "日付なし" ? -1 : b.localeCompare(a); });
+    el("stYears").innerHTML = years.length ? years.map(function (y) { return "<li><span>" + (y === "日付なし" ? y : y + "年") + '</span><span class="n">+' + byYear[y] + "空港</span></li>"; }).join("") : '<li><span class="n">記録するとここに表示されます</span></li>';
+  }
+
+  // ---- シェア画像 ----
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function makeShare() {
+    var W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    var navy = "#15203a", amber = "#ffc43a", dim = "#2a3757", pale = "#fdf0cc", mid = "#f6c552";
+    g.fillStyle = navy; g.fillRect(0, 0, W, H);
+    var pool = AIRPORTS.filter(inBasis);
+    var done = pool.filter(function (a) { return levelOf(a.id) > 0; }).length;
+    var font = cssVar("--font-body");
+    g.fillStyle = amber; g.font = "700 40px " + font; g.fillText("空港制覇", 70, 110);
+    g.font = "700 150px " + cssVar("--font-code"); g.fillText(String(done), 70, 280);
+    var w = g.measureText(String(done)).width;
+    g.font = "500 64px " + cssVar("--font-code"); g.globalAlpha = .75; g.fillText("/ " + pool.length, 90 + w, 280); g.globalAlpha = 1;
+    g.font = "500 30px " + font; g.fillStyle = "#c9d2e6"; g.fillText((ui.basis === "all" ? "国内の空港" : "定期便のある国内空港") + "を制覇", 72, 335);
+    var y = 410, size = 34, gap = 8;
+    REGIONS.forEach(function (r) {
+      var list = pool.filter(function (a) { return a.region === r; });
+      if (!list.length) return;
+      g.fillStyle = "#c9d2e6"; g.font = "600 26px " + font; g.fillText(r, 70, y + 26);
+      var x = 290, row = 0;
+      list.forEach(function (a, i) {
+        if (x + size > W - 70) { x = 290; row++; }
+        var lv = levelOf(a.id);
+        g.fillStyle = lv === 3 ? amber : lv === 2 ? mid : lv === 1 ? pale : dim;
+        g.fillRect(x, y + row * (size + gap), size, size);
+        x += size + gap;
+      });
+      y += (row + 1) * (size + gap) + 22;
+    });
+    g.fillStyle = "#8b97b4"; g.font = "500 24px " + font; g.fillText("行った・乗り継いだ・発着した", 70, H - 60);
+    var img = el("shareImg"); img.src = c.toDataURL("image/png"); img.hidden = false;
+  }
+
+  // ---- データ ----
+  function renderExport() { el("exportText").value = JSON.stringify({ app: "kuukou-seiha", version: 1, exportedAt: new Date().toISOString(), visits: state.visits }); }
+  function validateImport(obj) {
+    if (!obj || !Array.isArray(obj.visits)) return null;
+    var out = [];
+    for (var i = 0; i < obj.visits.length; i++) {
+      var v = obj.visits[i];
+      if (!v || !BY_ID[v.airportId] || [1, 2, 3].indexOf(v.level) < 0) continue;
+      out.push({ id: String(v.id || uid()), airportId: v.airportId, level: v.level, ym: /^\d{4}-\d{2}$/.test(v.ym || "") ? v.ym : "", note: String(v.note || "").slice(0, 60), createdAt: v.createdAt || new Date().toISOString() });
+    }
+    return out;
+  }
+
+  // ---- 記録シート ----
+  function openSheet(id) {
+    var a = BY_ID[id]; if (!a) return;
+    ui.sheetId = id; ui.pendingDelete = null;
+    ui.sheetLv = a.status === "active" ? 3 : 1;
+    el("sheetName").textContent = a.name;
+    el("sheetSub").textContent = [a.alias, a.pref, a.category + "空港"].filter(Boolean).join("・");
+    el("sheetCode").textContent = a.iata || "----";
+    el("sheetStatus").textContent = STATUS_LABEL[a.status];
+    el("visitYm").value = ""; el("visitNote").value = "";
+    renderSheet();
+    el("scrim").hidden = false;
+    el("sheetClose").focus();
+  }
+  function closeSheet() { el("scrim").hidden = true; var id = ui.sheetId; ui.sheetId = null; var t = document.querySelector('.tile[data-id="' + id + '"]'); if (t) t.focus(); }
+  function renderSheet() {
+    document.querySelectorAll(".seg button").forEach(function (b) { b.setAttribute("aria-pressed", Number(b.dataset.lv) === ui.sheetLv); });
+    var vs = visitsOf(ui.sheetId).sort(function (a, b) { return (b.ym || "").localeCompare(a.ym || "") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
+    el("visitsTitle").textContent = "これまでの記録（" + vs.length + "回）";
+    el("visitList").innerHTML = vs.length ? vs.map(function (v) {
+      var pending = ui.pendingDelete === v.id;
+      return '<div class="visit"><div class="meta">' + LV_LABEL[v.level] + "<small>" + fmtYm(v.ym) + (v.note ? "・" + esc(v.note) : "") + "</small></div>" +
+        '<button type="button" class="mini' + (pending ? " warn" : "") + '" data-del="' + esc(v.id) + '">' + (pending ? "本当に消す" : "消す") + "</button></div>";
+    }).join("") : '<p class="empty-note">まだ記録がありません。過去に行った空港も、日付なしで記録できます。</p>';
+  }
+
+  function renderAll() {
+    renderScore(); renderList();
+    if (ui.tab === "stats") renderStats();
+    if (ui.tab === "data") renderExport();
+  }
+  function setTab(t) {
+    ui.tab = t;
+    el("viewList").hidden = t !== "list"; el("viewStats").hidden = t !== "stats"; el("viewData").hidden = t !== "data";
+    el("tabList").setAttribute("aria-selected", t === "list"); el("tabStats").setAttribute("aria-selected", t === "stats"); el("tabData").setAttribute("aria-selected", t === "data");
+    renderAll(); window.scrollTo(0, 0);
+  }
+
+  // ---- イベント ----
+  el("regions").addEventListener("click", function (e) { var t = e.target.closest(".tile"); if (t) openSheet(t.dataset.id); });
+  document.querySelectorAll(".chip").forEach(function (c) { c.addEventListener("click", function () { ui.filter = c.dataset.f; renderList(); }); });
+  el("basisAll").addEventListener("click", function () { ui.basis = "all"; renderAll(); });
+  el("basisActive").addEventListener("click", function () { ui.basis = "active"; renderAll(); });
+  el("tabList").addEventListener("click", function () { setTab("list"); });
+  el("tabStats").addEventListener("click", function () { setTab("stats"); });
+  el("tabData").addEventListener("click", function () { setTab("data"); });
+
+  document.querySelectorAll(".seg button").forEach(function (b) { b.addEventListener("click", function () { ui.sheetLv = Number(b.dataset.lv); renderSheet(); }); });
+  el("addVisit").addEventListener("click", function () {
+    var wasNew = levelOf(ui.sheetId) === 0;
+    state.visits.push({ id: uid(), airportId: ui.sheetId, level: ui.sheetLv, ym: el("visitYm").value || "", note: el("visitNote").value.trim().slice(0, 60), createdAt: new Date().toISOString() });
+    persist(); el("visitYm").value = ""; el("visitNote").value = "";
+    renderSheet(); renderAll();
+    toast(wasNew ? BY_ID[ui.sheetId].short + "を制覇しました" : "記録しました");
+  });
+  el("visitList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-del]"); if (!b) return;
+    var id = b.dataset.del;
+    if (ui.pendingDelete !== id) { ui.pendingDelete = id; renderSheet(); return; }
+    state.visits = state.visits.filter(function (v) { return v.id !== id; });
+    ui.pendingDelete = null; persist(); renderSheet(); renderAll(); toast("記録を消しました");
+  });
+  el("sheetClose").addEventListener("click", closeSheet);
+  el("scrim").addEventListener("click", function (e) { if (e.target === el("scrim")) closeSheet(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !el("scrim").hidden) closeSheet(); });
+
+  el("makeShare").addEventListener("click", makeShare);
+
+  el("copyExport").addEventListener("click", function () {
+    var ta = el("exportText");
+    try {
+      navigator.clipboard.writeText(ta.value).then(function () { el("exportMsg").textContent = "コピーしました。メモアプリなどに貼り付けて保存してください。"; },
+        function () { ta.focus(); ta.select(); el("exportMsg").textContent = "全体を選択しました。長押しでコピーしてください。"; });
+    } catch (e) { ta.focus(); ta.select(); el("exportMsg").textContent = "全体を選択しました。長押しでコピーしてください。"; }
+  });
+  el("pickFile").addEventListener("click", function () { el("importFile").click(); });
+  el("importFile").addEventListener("change", function () {
+    var f = el("importFile").files[0]; if (!f) return;
+    var r = new FileReader(); r.onload = function () { el("importText").value = String(r.result || ""); el("importMsg").textContent = "ファイルを読み取りました。「読み込む」を押すと反映されます。"; }; r.readAsText(f);
+  });
+  el("doImport").addEventListener("click", function () {
+    var obj; try { obj = JSON.parse(el("importText").value); } catch (e) { el("importMsg").textContent = "データの形式が正しくありません。書き出したデータをそのまま貼り付けてください。"; return; }
+    var vs = validateImport(obj);
+    if (!vs) { el("importMsg").textContent = "このアプリで書き出したデータではないようです。"; return; }
+    state = { version: 1, visits: vs }; persist(); renderAll();
+    el("importMsg").textContent = vs.length + "件の記録を読み込みました。"; el("importText").value = "";
+  });
+  el("resetAsk").addEventListener("click", function () { el("resetDo").hidden = false; el("resetMsg").textContent = "もう一度押すと、すべての記録が消えます。"; });
+  el("resetDo").addEventListener("click", function () {
+    state = { version: 1, visits: [] }; persist(); renderAll();
+    el("resetDo").hidden = true; el("resetMsg").textContent = "すべての記録を消しました。";
+  });
+
+  renderAll();
+})();
+</script>
