@@ -14,6 +14,8 @@
   --land-none: #bfc8d6;
   --fill: #f2a900;
   --done-edge: #8a5a00;
+  --dot-on: #15203a;
+  --dot-off: #8d98b2;
   --lv1: #fdf0cc;  --lv1-ink: #6a4a00;
   --lv2: #f6c552;  --lv2-ink: #3a2a00;
   --lv3: #15203a;  --lv3-ink: #ffc43a;
@@ -27,7 +29,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0c1220; --surface: #161f33; --ink: #e9edf6; --muted: #93a0bd; --line: #2a3550;
     --accent: #ffbf2e;
-    --sea: #0f1828; --land: #2b3754; --land-none: #19223a; --fill: #ffbf2e; --done-edge: #fff1c8;
+    --sea: #0f1828; --land: #2b3754; --land-none: #19223a; --fill: #ffbf2e; --done-edge: #fff1c8; --dot-on: #fff1c8; --dot-off: #6c7894;
     --lv1: #3a3016; --lv1-ink: #ffd877;
     --lv2: #8a6510; --lv2-ink: #fff1c8;
     --lv3: #ffbf2e; --lv3-ink: #0c1220;
@@ -38,7 +40,7 @@
 :root[data-theme="dark"] {
   --bg: #0c1220; --surface: #161f33; --ink: #e9edf6; --muted: #93a0bd; --line: #2a3550;
   --accent: #ffbf2e;
-  --sea: #0f1828; --land: #2b3754; --land-none: #19223a; --fill: #ffbf2e; --done-edge: #fff1c8;
+  --sea: #0f1828; --land: #2b3754; --land-none: #19223a; --fill: #ffbf2e; --done-edge: #fff1c8; --dot-on: #fff1c8; --dot-off: #6c7894;
   --lv1: #3a3016; --lv1-ink: #ffd877;
   --lv2: #8a6510; --lv2-ink: #fff1c8;
   --lv3: #ffbf2e; --lv3-ink: #0c1220;
@@ -71,12 +73,19 @@ main { max-width: 760px; margin: 0 auto; padding: 12px 16px 110px; }
 /* 地図 */
 .mapwrap { position: relative; background: var(--sea); border-radius: 14px; padding: 4px; }
 .mapwrap svg { display: block; width: 100%; height: auto; max-height: 70vh; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.mapwrap .land { stroke: var(--sea); stroke-width: .7; stroke-linejoin: round; }
+.mapwrap .land { fill: var(--land); stroke: var(--sea); stroke-width: .7; stroke-linejoin: round; }
 .mapwrap .land.none { fill: var(--land-none); }
+.mapwrap .edge { fill: none; stroke: var(--sea); stroke-width: .7; stroke-linejoin: round; pointer-events: none; }
+.mapwrap .cell { fill: var(--fill); stroke: none; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+.mapwrap .cell[data-lv="1"] { opacity: .38; }
+.mapwrap .cell[data-lv="2"] { opacity: .68; }
+.mapwrap .cell[data-lv="3"] { opacity: 1; }
+.mapwrap .dot { fill: var(--land); stroke: var(--dot-off); stroke-width: 1.4; pointer-events: none; }
+.mapwrap .dot.on { fill: var(--dot-on); stroke: var(--dot-on); }
 .mapwrap .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; }
 .mapwrap g.pref { cursor: pointer; }
-.mapwrap g.pref.done .land { stroke: var(--done-edge); stroke-width: 1.3; }
-.mapwrap g.pref.sel .land { stroke: var(--ink); stroke-width: 2.2; }
+.mapwrap g.pref.done .edge { stroke: var(--done-edge); stroke-width: 1.3; }
+.mapwrap g.pref.sel .edge { stroke: var(--ink); stroke-width: 2.2; }
 .mapwrap .inset { fill: none; stroke: var(--muted); stroke-opacity: .5; stroke-width: 1.2; stroke-dasharray: 5 5; }
 .mapwrap .inset-label { fill: var(--muted); font-size: 16px; font-family: var(--font-body); }
 .maplegend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
@@ -181,7 +190,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 .mini.warn { border-color: var(--danger); color: var(--danger); }
 .back { border: 0; background: transparent; color: var(--muted); padding: 0; font-size: 13px; margin-bottom: 6px; }
 .toast { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 20; white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bar i, .mapwrap .cell { transition: none; } }
 </style>
 
 <header class="top">
@@ -200,11 +209,12 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   <section id="viewMap">
     <div class="mapwrap" id="mapwrap"></div>
     <div class="maplegend">
-      <span><i style="background:var(--fill)"></i>行った空港の割合だけ塗られる</span>
-      <span><i style="background:var(--land)"></i>まだ</span>
+      <span><i style="background:var(--fill)"></i>発着した</span>
+      <span><i style="background:var(--fill);opacity:.68"></i>乗り継いだ</span>
+      <span><i style="background:var(--fill);opacity:.38"></i>行った</span>
       <span><i style="background:var(--land-none)"></i>対象の空港なし</span>
     </div>
-    <p class="hint">都道府県をタップすると、その県の空港を記録できます。</p>
+    <p class="hint">空港（点）を記録すると、その周りが色づきます。県の空港を全部記録すると県全体が塗りつぶされます。都道府県をタップすると記録できます。</p>
     <div class="stat-row" style="margin-top:12px">
       <div class="stat"><b id="mpAir">0</b><small>制覇した空港</small></div>
       <div class="stat"><b id="mpFull">0</b><small>塗りつぶした県</small></div>
@@ -339,6 +349,8 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   var RAW = __AIRPORTS__;
   // 都道府県の形（地球地図日本を加工。沖縄県は左上の枠内に1.2倍で配置）
   var MAP = __MAP__;
+  // 空港の位置と、県の中で一番近い空港の範囲（なわばり）
+  var GEO = __GEO__;
   var MAP_W = 770, MAP_H = 868;
   var INSET = { x: 8, y: 8, w: 392, h: 232 };
 
@@ -397,51 +409,52 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
   var PARTS = {};   // 都道府県 → [{d, box}]
-  var shown = {};   // 画面に出している塗り割合（アニメーション用）
   function buildMap() {
-    var defs = "", body = "";
+    var defs = "", body = "", dots = "";
     PREFS.forEach(function (p, i) {
       var ds = MAP[p] || [];
       PARTS[p] = ds.map(function (d) { return { d: d, box: bboxOf(d) }; });
-      defs += '<linearGradient id="gf' + i + '" x1="0" y1="1" x2="0" y2="0">' +
-        '<stop offset="0" style="stop-color:var(--fill)"/><stop offset="0" style="stop-color:var(--fill)"/>' +
-        '<stop offset="0" style="stop-color:var(--land)"/><stop offset="1" style="stop-color:var(--land)"/></linearGradient>';
-      var g = '<g class="pref" data-pref="' + p + '" data-i="' + i + '"><title>' + p + "</title>";
-      PARTS[p].forEach(function (pt) { g += '<path class="land" d="' + pt.d + '" fill="url(#gf' + i + ')"/>'; });
+      defs += '<clipPath id="cp' + i + '"><path d="' + ds.join("") + '"/></clipPath>';
+      var g = '<g class="pref" data-pref="' + p + '"><title>' + p + "</title>";
+      PARTS[p].forEach(function (pt) { g += '<path class="land" d="' + pt.d + '"/>'; });
+      g += '<g class="cells" clip-path="url(#cp' + i + ')" id="cells' + i + '"></g>';
+      PARTS[p].forEach(function (pt) { g += '<path class="edge" d="' + pt.d + '"/>'; });
       PARTS[p].forEach(function (pt) { if (pt.box.w * pt.box.h < 900) g += '<path class="hit" d="' + pt.d + '"/>'; });
       body += g + "</g>";
-      shown[p] = 0;
+    });
+    AIRPORTS.forEach(function (a) {
+      var pt = GEO.pt[a.id];
+      dots += '<circle class="dot" data-id="' + a.id + '" cx="' + pt[0] + '" cy="' + pt[1] + '" r="3"/>';
     });
     el("mapwrap").innerHTML = '<svg viewBox="0 0 ' + MAP_W + " " + MAP_H + '" role="img" aria-label="都道府県ごとの空港制覇の地図"><defs>' + defs + "</defs>" +
       '<rect class="inset" x="' + INSET.x + '" y="' + INSET.y + '" width="' + INSET.w + '" height="' + INSET.h + '" rx="10"/>' +
-      '<text class="inset-label" x="' + (INSET.x + 12) + '" y="' + (INSET.y + INSET.h - 12) + '">沖縄県</text>' + body + "</svg>";
+      '<text class="inset-label" x="' + (INSET.x + 12) + '" y="' + (INSET.y + INSET.h - 12) + '">沖縄県</text>' + body + '<g id="dots">' + dots + "</g></svg>";
   }
-  function setPrefFill(p, r) {
-    var i = PREFS.indexOf(p), gr = document.getElementById("gf" + i); if (!gr) return;
-    var stops = gr.querySelectorAll("stop"), o = Math.max(0, Math.min(1, r));
-    stops[1].setAttribute("offset", o); stops[2].setAttribute("offset", o);
+  var builtBasis = null;
+  function buildCells() {
+    var cells = GEO[ui.basis];
+    PREFS.forEach(function (p, i) {
+      el("cells" + i).innerHTML = airportsOfPref(p).map(function (a) {
+        return '<path class="cell" data-id="' + a.id + '" data-lv="0" d="' + cells[a.id] + '"/>';
+      }).join("");
+    });
+    builtBasis = ui.basis;
   }
-  var anim = null;
   function renderMap() {
-    var targets = {};
+    if (builtBasis !== ui.basis) buildCells();
+    document.querySelectorAll(".mapwrap .cell").forEach(function (c) { c.setAttribute("data-lv", levelOf(c.dataset.id)); });
+    document.querySelectorAll(".mapwrap .dot").forEach(function (d) {
+      var a = BY_ID[d.dataset.id];
+      d.style.display = inBasis(a) ? "" : "none";
+      d.classList.toggle("on", levelOf(a.id) > 0);
+    });
     PREFS.forEach(function (p) {
       var r = prefRatio(p), g = document.querySelector('g.pref[data-pref="' + p + '"]');
-      targets[p] = r === null ? 0 : r;
       if (!g) return;
       g.querySelectorAll(".land").forEach(function (path) { path.classList.toggle("none", r === null); });
       g.classList.toggle("done", r === 1);
       g.classList.toggle("sel", ui.pref === p && !el("prefScrim").hidden);
     });
-    if (anim) cancelAnimationFrame(anim);
-    var from = {}; PREFS.forEach(function (p) { from[p] = shown[p]; });
-    var t0 = null, dur = reduceMotion ? 0 : 700;
-    function step(ts) {
-      if (t0 === null) t0 = ts;
-      var k = dur ? Math.min(1, (ts - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3);
-      PREFS.forEach(function (p) { shown[p] = from[p] + (targets[p] - from[p]) * e; setPrefFill(p, shown[p]); });
-      if (k < 1) anim = requestAnimationFrame(step); else anim = null;
-    }
-    anim = requestAnimationFrame(step);
 
     // まとめと都道府県チップ
     var pool = AIRPORTS.filter(inBasis);
@@ -566,18 +579,26 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     g.save(); g.translate(ox, oy); g.scale(s, s);
     g.strokeStyle = "rgba(201,210,230,.35)"; g.lineWidth = 1.4 / s * 1.2; g.setLineDash([5, 5]);
     g.strokeRect(INSET.x, INSET.y, INSET.w, INSET.h); g.setLineDash([]);
+    var cells = GEO[ui.basis], ALPHA = [0, .38, .68, 1];
     PREFS.forEach(function (p) {
-      var r = prefRatio(p);
-      PARTS[p].forEach(function (pt) {
-        var path = new Path2D(pt.d);
-        g.fillStyle = r === null ? none : land; g.fill(path);
-        if (r) {
-          g.save(); g.clip(path); g.fillStyle = amber;
-          g.fillRect(pt.box.x - 1, pt.box.y + pt.box.h * (1 - r) - .5, pt.box.w + 2, pt.box.h * r + 1);
-          g.restore();
-        }
-        g.strokeStyle = navy; g.lineWidth = .8; g.stroke(path);
-      });
+      var r = prefRatio(p), whole = new Path2D((MAP[p] || []).join(""));
+      g.fillStyle = r === null ? none : land; g.fill(whole);
+      if (r) {
+        g.save(); g.clip(whole); g.fillStyle = amber;
+        airportsOfPref(p).forEach(function (a) {
+          var lv = levelOf(a.id); if (!lv) return;
+          g.globalAlpha = ALPHA[lv]; g.fill(new Path2D(cells[a.id]));
+        });
+        g.restore();
+      }
+      g.strokeStyle = navy; g.lineWidth = .8; g.stroke(whole);
+    });
+    AIRPORTS.forEach(function (a) {
+      if (!inBasis(a)) return;
+      var pt = GEO.pt[a.id], on = levelOf(a.id) > 0;
+      g.beginPath(); g.arc(pt[0], pt[1], 2.6, 0, Math.PI * 2);
+      g.fillStyle = on ? "#fff1c8" : land; g.fill();
+      g.lineWidth = 1.2; g.strokeStyle = on ? "#fff1c8" : "#6c7894"; g.stroke();
     });
     g.restore();
 
