@@ -5,10 +5,6 @@
   "backgroundColor": "#15203a",
   "ios": {
     "contentInset": "never",
-    "scrollEnabled": true,
-    "backgroundColor": "#15203a"
-  },
-  "android": {
     "backgroundColor": "#15203a"
   }
 }

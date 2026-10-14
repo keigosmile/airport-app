@@ -48,6 +48,9 @@
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
+/* 日本語の改行：単語の途中で切らず、句読点やスペースで改行する（収まらない時だけ途中で折る） */
+p, .hint, .msg, .empty-note, .sub, .credit, .maplegend span, .legend span, h2, h3, label, .prow small, .toast { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; text-wrap: pretty; }
+.stat small, .pchip .row span, .btn, .tabs button, .seg button, .chip, .basis button, .badge, .back { white-space: nowrap; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
@@ -224,8 +227,12 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     <div class="prefs" id="prefChips"></div>
     <h3>シェア画像</h3>
     <div class="panel">
-      <p>今の地図を1枚の画像にします。画像を長押しすると保存できます。</p>
-      <button type="button" class="btn" id="makeShare">画像を作る</button>
+      <p id="shareLead">今の地図を1枚の画像にします。画像を長押しすると保存できます。</p>
+      <div class="btns">
+        <button type="button" class="btn" id="makeShare">画像を作る</button>
+        <button type="button" class="btn ghost" id="sendShare" hidden>保存・共有する</button>
+      </div>
+      <div class="msg" id="shareMsg"></div>
       <img id="shareImg" alt="空港制覇の地図" hidden>
     </div>
     <p class="credit">地図：地球地図日本（国土地理院）を加工して作成</p>
@@ -263,9 +270,9 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   <section id="viewData" hidden>
     <div class="panel">
       <h3>書き出し（バックアップ）</h3>
-      <p>記録をすべて文字データにします。コピーしてメモアプリなどに保存しておけば、いつでも元に戻せます。</p>
+      <p>記録をすべて1つのデータにします。ファイルに保存するか、コピーしてメモアプリなどに残しておけば、いつでも元に戻せます。</p>
       <textarea id="exportText" readonly aria-label="書き出したデータ"></textarea>
-      <div class="btns"><button type="button" class="btn" id="copyExport">コピーする</button></div>
+      <div class="btns"><button type="button" class="btn" id="saveExport" hidden>ファイルに保存</button><button type="button" class="btn" id="copyExport">コピーする</button></div>
       <div class="msg" id="exportMsg"></div>
     </div>
     <div class="panel">
@@ -285,7 +292,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
       <div class="btns"><button type="button" class="btn ghost" id="resetAsk">すべて消す</button><button type="button" class="btn danger" id="resetDo" hidden>本当に消す</button></div>
       <div class="msg" id="resetMsg"></div>
     </div>
-    <p class="empty-note">試作版です。記録はこの端末のブラウザ内に保存されます。アプリ版では、機種変更でも消えない保存方法に切り替えます。</p>
+    <p class="empty-note" id="storeNote">記録はこのブラウザの中に保存されます。消えると困る記録は、書き出して残しておいてください。</p>
     <p class="credit">地図：地球地図日本（国土地理院）を加工して作成</p>
   </section>
 </main>
@@ -343,7 +350,24 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 <div class="toast" id="toast" hidden></div>
 
 <script>
-(function () {
+var KS_KEY = "kuukou-seiha.v1";
+function ksNative() { return (window.Capacitor && window.Capacitor.Plugins) || {}; }
+function ksIsApp() { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } }
+// アプリの中では、iOSが消すことのあるブラウザ領域ではなく、iPhone本体の保存領域（iCloudバックアップ対象）を正とする
+function ksBoot(start) {
+  var P = ksNative().Preferences;
+  if (!P) { start(); return; }
+  var done = false;
+  function go() { if (!done) { done = true; start(); } }
+  try {
+    P.get({ key: KS_KEY }).then(function (r) {
+      try { if (r && r.value) localStorage.setItem(KS_KEY, r.value); } catch (e) {}
+      go();
+    }, go);
+  } catch (e) { go(); }
+  setTimeout(go, 1500);
+}
+ksBoot(function () {
   "use strict";
   // [id, 短縮名, 正式名称, 愛称, 都道府県, 地方, 分類, IATA, 状態]
   var RAW = __AIRPORTS__;
@@ -366,12 +390,24 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   var BY_ID = {};
   AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
 
-  // ---- 保存（アプリ版ではここだけ差し替える） ----
-  var KEY = "kuukou-seiha.v1";
+  // ---- 保存 ----
+  var KEY = KS_KEY, IS_APP = ksIsApp();
   var store = {
     load: function () { try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
-    save: function (data) { try { localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
+    save: function (data) {
+      var json = JSON.stringify(data);
+      try { localStorage.setItem(KEY, json); } catch (e) {}
+      try { var P = ksNative().Preferences; if (P) P.set({ key: KEY, value: json }); } catch (e) {}
+    }
   };
+  // アプリで、ファイルを書き出してiOSの共有メニュー（「ファイル」に保存など）を開く
+  function shareFile(name, data, isBase64) {
+    var FS = ksNative().Filesystem, SH = ksNative().Share;
+    if (!FS || !SH) return Promise.reject(new Error("no plugin"));
+    var opt = { path: name, data: data, directory: "CACHE" };
+    if (!isBase64) opt.encoding = "utf8";
+    return FS.writeFile(opt).then(function (r) { return SH.share({ title: name, url: r.uri }); });
+  }
   var state = store.load() || { version: 1, visits: [] };
   if (!Array.isArray(state.visits)) state = { version: 1, visits: [] };
   var ui = { filter: "all", basis: "all", tab: "map", sheetId: null, sheetLv: 3, pendingDelete: null, pref: null, fromPref: null };
@@ -563,6 +599,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 
   // ---- シェア画像（地図を描く） ----
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  var lastShare = null;
   function makeShare() {
     var W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
     var g = c.getContext("2d");
@@ -613,7 +650,10 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     g.fillText("塗りつぶした県 " + full + "/" + withAir.length, W - 64, 222);
     g.textAlign = "left";
     g.fillStyle = "#8b97b4"; g.font = "500 22px " + font; g.fillText("地図：地球地図日本（国土地理院）を加工して作成", 64, H - 34);
-    var img = el("shareImg"); img.src = c.toDataURL("image/png"); img.hidden = false;
+    var url = c.toDataURL("image/png");
+    var img = el("shareImg"); img.src = url; img.hidden = false;
+    el("sendShare").hidden = !IS_APP; el("shareMsg").textContent = "";
+    lastShare = url;
   }
 
   // ---- データ ----
@@ -718,6 +758,28 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   });
 
   el("makeShare").addEventListener("click", makeShare);
+  el("sendShare").addEventListener("click", function () {
+    if (!lastShare) return;
+    shareFile("kuukou-seiha.png", lastShare.split(",")[1], true).catch(function (e) {
+      if (e && /cancel/i.test(String(e.message || e))) return;
+      el("shareMsg").textContent = "保存できませんでした。画像を長押しして保存してください。";
+    });
+  });
+  el("saveExport").addEventListener("click", function () {
+    var d = new Date(), stamp = d.getFullYear() + ("0" + (d.getMonth() + 1)).slice(-2) + ("0" + d.getDate()).slice(-2);
+    shareFile("kuukou-seiha-" + stamp + ".json", el("exportText").value, false).then(function () {
+      el("exportMsg").textContent = "保存先を選ぶと、そこにファイルが残ります。「ファイル」アプリやiCloud Driveがおすすめです。";
+    }, function (e) {
+      if (e && /cancel/i.test(String(e.message || e))) return;
+      el("exportMsg").textContent = "ファイルに保存できませんでした。「コピーする」を使ってください。";
+    });
+  });
+  if (IS_APP) {
+    el("saveExport").hidden = false;
+    el("copyExport").className = "btn ghost";
+    el("shareLead").textContent = "今の地図を1枚の画像にして、写真への保存やSNSへの投稿ができます。";
+    el("storeNote").textContent = "記録はこのiPhoneに保存され、iCloudバックアップにも含まれます。念のため、ときどき書き出しもしておくと安心です。";
+  }
   el("copyExport").addEventListener("click", function () {
     var ta = el("exportText");
     function fallback() { ta.focus(); ta.select(); el("exportMsg").textContent = "全体を選択しました。長押しでコピーしてください。"; }
@@ -745,5 +807,5 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 
   buildMap();
   renderAll();
-})();
+});
 </script>

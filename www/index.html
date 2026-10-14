@@ -52,6 +52,9 @@
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
+/* 日本語の改行：単語の途中で切らず、句読点やスペースで改行する（収まらない時だけ途中で折る） */
+p, .hint, .msg, .empty-note, .sub, .credit, .maplegend span, .legend span, h2, h3, label, .prow small, .toast { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; text-wrap: pretty; }
+.stat small, .pchip .row span, .btn, .tabs button, .seg button, .chip, .basis button, .badge, .back { white-space: nowrap; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
@@ -231,8 +234,12 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     <div class="prefs" id="prefChips"></div>
     <h3>シェア画像</h3>
     <div class="panel">
-      <p>今の地図を1枚の画像にします。画像を長押しすると保存できます。</p>
-      <button type="button" class="btn" id="makeShare">画像を作る</button>
+      <p id="shareLead">今の地図を1枚の画像にします。画像を長押しすると保存できます。</p>
+      <div class="btns">
+        <button type="button" class="btn" id="makeShare">画像を作る</button>
+        <button type="button" class="btn ghost" id="sendShare" hidden>保存・共有する</button>
+      </div>
+      <div class="msg" id="shareMsg"></div>
       <img id="shareImg" alt="空港制覇の地図" hidden>
     </div>
     <p class="credit">地図：地球地図日本（国土地理院）を加工して作成</p>
@@ -270,9 +277,9 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   <section id="viewData" hidden>
     <div class="panel">
       <h3>書き出し（バックアップ）</h3>
-      <p>記録をすべて文字データにします。コピーしてメモアプリなどに保存しておけば、いつでも元に戻せます。</p>
+      <p>記録をすべて1つのデータにします。ファイルに保存するか、コピーしてメモアプリなどに残しておけば、いつでも元に戻せます。</p>
       <textarea id="exportText" readonly aria-label="書き出したデータ"></textarea>
-      <div class="btns"><button type="button" class="btn" id="copyExport">コピーする</button></div>
+      <div class="btns"><button type="button" class="btn" id="saveExport" hidden>ファイルに保存</button><button type="button" class="btn" id="copyExport">コピーする</button></div>
       <div class="msg" id="exportMsg"></div>
     </div>
     <div class="panel">
@@ -292,7 +299,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
       <div class="btns"><button type="button" class="btn ghost" id="resetAsk">すべて消す</button><button type="button" class="btn danger" id="resetDo" hidden>本当に消す</button></div>
       <div class="msg" id="resetMsg"></div>
     </div>
-    <p class="empty-note">試作版です。記録はこの端末のブラウザ内に保存されます。アプリ版では、機種変更でも消えない保存方法に切り替えます。</p>
+    <p class="empty-note" id="storeNote">記録はこのブラウザの中に保存されます。消えると困る記録は、書き出して残しておいてください。</p>
     <p class="credit">地図：地球地図日本（国土地理院）を加工して作成</p>
   </section>
 </main>
@@ -350,7 +357,24 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 <div class="toast" id="toast" hidden></div>
 
 <script>
-(function () {
+var KS_KEY = "kuukou-seiha.v1";
+function ksNative() { return (window.Capacitor && window.Capacitor.Plugins) || {}; }
+function ksIsApp() { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } }
+// アプリの中では、iOSが消すことのあるブラウザ領域ではなく、iPhone本体の保存領域（iCloudバックアップ対象）を正とする
+function ksBoot(start) {
+  var P = ksNative().Preferences;
+  if (!P) { start(); return; }
+  var done = false;
+  function go() { if (!done) { done = true; start(); } }
+  try {
+    P.get({ key: KS_KEY }).then(function (r) {
+      try { if (r && r.value) localStorage.setItem(KS_KEY, r.value); } catch (e) {}
+      go();
+    }, go);
+  } catch (e) { go(); }
+  setTimeout(go, 1500);
+}
+ksBoot(function () {
   "use strict";
   // [id, 短縮名, 正式名称, 愛称, 都道府県, 地方, 分類, IATA, 状態]
   var RAW = [["NRT","成田","成田国際空港","","千葉県","関東・伊豆諸島","会社管理","NRT","active"],["NGO","中部","中部国際空港","セントレア","愛知県","中部","会社管理","NGO","active"],["KIX","関西","関西国際空港","","大阪府","近畿","会社管理","KIX","active"],["ITM","伊丹","大阪国際空港","伊丹空港","大阪府","近畿","会社管理","ITM","active"],["HND","羽田","東京国際空港","羽田空港","東京都","関東・伊豆諸島","国管理","HND","active"],["CTS","新千歳","新千歳空港","","北海道","北海道","国管理","CTS","active"],["WKJ","稚内","稚内空港","","北海道","北海道","国管理","WKJ","active"],["KUH","釧路","釧路空港","たんちょう釧路空港","北海道","北海道","国管理","KUH","active"],["HKD","函館","函館空港","","北海道","北海道","国管理","HKD","active"],["SDJ","仙台","仙台空港","","宮城県","東北","国管理","SDJ","active"],["KIJ","新潟","新潟空港","","新潟県","中部","国管理","KIJ","active"],["HIJ","広島","広島空港","","広島県","中国","国管理","HIJ","active"],["TAK","高松","高松空港","","香川県","四国","国管理","TAK","active"],["MYJ","松山","松山空港","","愛媛県","四国","国管理","MYJ","active"],["KCZ","高知","高知空港","高知龍馬空港","高知県","四国","国管理","KCZ","active"],["FUK","福岡","福岡空港","","福岡県","九州","国管理","FUK","active"],["KKJ","北九州","北九州空港","","福岡県","九州","国管理","KKJ","active"],["NGS","長崎","長崎空港","","長崎県","九州","国管理","NGS","active"],["KMJ","熊本","熊本空港","阿蘇くまもと空港","熊本県","九州","国管理","KMJ","active"],["OIT","大分","大分空港","","大分県","九州","国管理","OIT","active"],["KMI","宮崎","宮崎空港","宮崎ブーゲンビリア空港","宮崎県","九州","国管理","KMI","active"],["KOJ","鹿児島","鹿児島空港","","鹿児島県","九州","国管理","KOJ","active"],["OKA","那覇","那覇空港","","沖縄県","沖縄","国管理","OKA","active"],["AKJ","旭川","旭川空港","","北海道","北海道","特定地方管理","AKJ","active"],["OBO","帯広","帯広空港","とかち帯広空港","北海道","北海道","特定地方管理","OBO","active"],["AXT","秋田","秋田空港","","秋田県","東北","特定地方管理","AXT","active"],["GAJ","山形","山形空港","おいしい山形空港","山形県","東北","特定地方管理","GAJ","active"],["UBJ","山口宇部","山口宇部空港","","山口県","中国","特定地方管理","UBJ","active"],["RIS","利尻","利尻空港","","北海道","北海道","地方管理","RIS","active"],["REBUN","礼文","礼文空港","","北海道","北海道","地方管理","","suspended"],["OIR","奥尻","奥尻空港","","北海道","北海道","地方管理","OIR","active"],["SHB","中標津","中標津空港","根室中標津空港","北海道","北海道","地方管理","SHB","active"],["MBE","紋別","紋別空港","オホーツク紋別空港","北海道","北海道","地方管理","MBE","active"],["MMB","女満別","女満別空港","","北海道","北海道","地方管理","MMB","active"],["AOJ","青森","青森空港","","青森県","東北","地方管理","AOJ","active"],["HNA","花巻","花巻空港","いわて花巻空港","岩手県","東北","地方管理","HNA","active"],["ONJ","大館能代","大館能代空港","あきた北空港","秋田県","東北","地方管理","ONJ","active"],["SYO","庄内","庄内空港","おいしい庄内空港","山形県","東北","地方管理","SYO","active"],["FKS","福島","福島空港","","福島県","東北","地方管理","FKS","active"],["OIM","大島","大島空港","","東京都","関東・伊豆諸島","地方管理","OIM","active"],["NIIJIMA","新島","新島空港","","東京都","関東・伊豆諸島","地方管理","","active"],["KOZUSHIMA","神津島","神津島空港","","東京都","関東・伊豆諸島","地方管理","","active"],["MYE","三宅島","三宅島空港","","東京都","関東・伊豆諸島","地方管理","MYE","active"],["HAC","八丈島","八丈島空港","","東京都","関東・伊豆諸島","地方管理","HAC","active"],["SDS","佐渡","佐渡空港","","新潟県","中部","地方管理","SDS","suspended"],["TOY","富山","富山空港","富山きときと空港","富山県","中部","地方管理","TOY","active"],["NTQ","能登","能登空港","のと里山空港","石川県","中部","地方管理","NTQ","active"],["FKJ","福井","福井空港","","福井県","中部","地方管理","FKJ","no_scheduled"],["MMJ","松本","松本空港","信州まつもと空港","長野県","中部","地方管理","MMJ","active"],["FSZ","静岡","静岡空港","富士山静岡空港","静岡県","中部","地方管理","FSZ","active"],["UKB","神戸","神戸空港","","兵庫県","近畿","地方管理","UKB","active"],["SHM","南紀白浜","南紀白浜空港","","和歌山県","近畿","地方管理","SHM","active"],["TTJ","鳥取","鳥取空港","鳥取砂丘コナン空港","鳥取県","中国","地方管理","TTJ","active"],["OKI","隠岐","隠岐空港","隠岐世界ジオパーク空港","島根県","中国","地方管理","OKI","active"],["IZO","出雲","出雲空港","出雲縁結び空港","島根県","中国","地方管理","IZO","active"],["IWJ","石見","石見空港","萩・石見空港","島根県","中国","地方管理","IWJ","active"],["OKJ","岡山","岡山空港","岡山桃太郎空港","岡山県","中国","地方管理","OKJ","active"],["HSG","佐賀","佐賀空港","九州佐賀国際空港","佐賀県","九州","地方管理","HSG","active"],["TSJ","対馬","対馬空港","対馬やまねこ空港","長崎県","九州","地方管理","TSJ","active"],["OJIKA","小値賀","小値賀空港","","長崎県","九州","地方管理","","suspended"],["FUJ","福江","福江空港","五島つばき空港","長崎県","九州","地方管理","FUJ","active"],["KAMIGOTO","上五島","上五島空港","","長崎県","九州","地方管理","","suspended"],["IKI","壱岐","壱岐空港","","長崎県","九州","地方管理","IKI","active"],["TNE","種子島","種子島空港","","鹿児島県","九州","地方管理","TNE","active"],["KUM","屋久島","屋久島空港","","鹿児島県","九州","地方管理","KUM","active"],["ASJ","奄美","奄美空港","","鹿児島県","九州","地方管理","ASJ","active"],["KKX","喜界","喜界空港","","鹿児島県","九州","地方管理","KKX","active"],["TKN","徳之島","徳之島空港","","鹿児島県","九州","地方管理","TKN","active"],["OKE","沖永良部","沖永良部空港","","鹿児島県","九州","地方管理","OKE","active"],["RNJ","与論","与論空港","","鹿児島県","九州","地方管理","RNJ","active"],["AGJ","粟国","粟国空港","","沖縄県","沖縄","地方管理","AGJ","suspended"],["UEO","久米島","久米島空港","","沖縄県","沖縄","地方管理","UEO","active"],["KJP","慶良間","慶良間空港","","沖縄県","沖縄","地方管理","KJP","no_scheduled"],["MMD","南大東","南大東空港","","沖縄県","沖縄","地方管理","MMD","active"],["KTD","北大東","北大東空港","","沖縄県","沖縄","地方管理","KTD","active"],["IEJ","伊江島","伊江島空港","","沖縄県","沖縄","地方管理","IEJ","no_scheduled"],["MMY","宮古","宮古空港","","沖縄県","沖縄","地方管理","MMY","active"],["SHI","下地島","下地島空港","","沖縄県","沖縄","地方管理","SHI","active"],["TRA","多良間","多良間空港","","沖縄県","沖縄","地方管理","TRA","active"],["ISG","新石垣","新石垣空港","南ぬ島石垣空港","沖縄県","沖縄","地方管理","ISG","active"],["HTR","波照間","波照間空港","","沖縄県","沖縄","地方管理","HTR","suspended"],["OGN","与那国","与那国空港","","沖縄県","沖縄","地方管理","OGN","active"],["CHOFU","調布","調布飛行場","","東京都","関東・伊豆諸島","その他","","active"],["NKM","小牧","名古屋飛行場","県営名古屋空港（小牧）","愛知県","中部","その他","NKM","active"],["TJH","但馬","但馬飛行場","コウノトリ但馬空港","兵庫県","近畿","その他","TJH","active"],["KONAN","岡南","岡南飛行場","","岡山県","中国","その他","","no_scheduled"],["AXJ","天草","天草飛行場","天草空港","熊本県","九州","その他","AXJ","active"],["KENOU","大分県央","大分県央飛行場","","大分県","九州","その他","","no_scheduled"],["YAO","八尾","八尾空港","","大阪府","近畿","その他","","no_scheduled"],["OKD","丘珠","札幌飛行場","丘珠空港","北海道","北海道","共用","OKD","active"],["CHITOSE","千歳","千歳飛行場","","北海道","北海道","共用","","no_scheduled"],["MSJ","三沢","三沢飛行場","三沢空港","青森県","東北","共用","MSJ","active"],["IBR","茨城","百里飛行場","茨城空港","茨城県","関東・伊豆諸島","共用","IBR","active"],["KMQ","小松","小松飛行場","小松空港","石川県","中部","共用","KMQ","active"],["YGJ","米子","美保飛行場","米子鬼太郎空港","鳥取県","中国","共用","YGJ","active"],["IWK","岩国","岩国飛行場","岩国錦帯橋空港","山口県","中国","共用","IWK","active"],["TKS","徳島","徳島飛行場","徳島阿波おどり空港","徳島県","四国","共用","TKS","active"]];
@@ -373,12 +397,24 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   var BY_ID = {};
   AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
 
-  // ---- 保存（アプリ版ではここだけ差し替える） ----
-  var KEY = "kuukou-seiha.v1";
+  // ---- 保存 ----
+  var KEY = KS_KEY, IS_APP = ksIsApp();
   var store = {
     load: function () { try { var s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
-    save: function (data) { try { localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
+    save: function (data) {
+      var json = JSON.stringify(data);
+      try { localStorage.setItem(KEY, json); } catch (e) {}
+      try { var P = ksNative().Preferences; if (P) P.set({ key: KEY, value: json }); } catch (e) {}
+    }
   };
+  // アプリで、ファイルを書き出してiOSの共有メニュー（「ファイル」に保存など）を開く
+  function shareFile(name, data, isBase64) {
+    var FS = ksNative().Filesystem, SH = ksNative().Share;
+    if (!FS || !SH) return Promise.reject(new Error("no plugin"));
+    var opt = { path: name, data: data, directory: "CACHE" };
+    if (!isBase64) opt.encoding = "utf8";
+    return FS.writeFile(opt).then(function (r) { return SH.share({ title: name, url: r.uri }); });
+  }
   var state = store.load() || { version: 1, visits: [] };
   if (!Array.isArray(state.visits)) state = { version: 1, visits: [] };
   var ui = { filter: "all", basis: "all", tab: "map", sheetId: null, sheetLv: 3, pendingDelete: null, pref: null, fromPref: null };
@@ -570,6 +606,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 
   // ---- シェア画像（地図を描く） ----
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  var lastShare = null;
   function makeShare() {
     var W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
     var g = c.getContext("2d");
@@ -620,7 +657,10 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     g.fillText("塗りつぶした県 " + full + "/" + withAir.length, W - 64, 222);
     g.textAlign = "left";
     g.fillStyle = "#8b97b4"; g.font = "500 22px " + font; g.fillText("地図：地球地図日本（国土地理院）を加工して作成", 64, H - 34);
-    var img = el("shareImg"); img.src = c.toDataURL("image/png"); img.hidden = false;
+    var url = c.toDataURL("image/png");
+    var img = el("shareImg"); img.src = url; img.hidden = false;
+    el("sendShare").hidden = !IS_APP; el("shareMsg").textContent = "";
+    lastShare = url;
   }
 
   // ---- データ ----
@@ -725,6 +765,28 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   });
 
   el("makeShare").addEventListener("click", makeShare);
+  el("sendShare").addEventListener("click", function () {
+    if (!lastShare) return;
+    shareFile("kuukou-seiha.png", lastShare.split(",")[1], true).catch(function (e) {
+      if (e && /cancel/i.test(String(e.message || e))) return;
+      el("shareMsg").textContent = "保存できませんでした。画像を長押しして保存してください。";
+    });
+  });
+  el("saveExport").addEventListener("click", function () {
+    var d = new Date(), stamp = d.getFullYear() + ("0" + (d.getMonth() + 1)).slice(-2) + ("0" + d.getDate()).slice(-2);
+    shareFile("kuukou-seiha-" + stamp + ".json", el("exportText").value, false).then(function () {
+      el("exportMsg").textContent = "保存先を選ぶと、そこにファイルが残ります。「ファイル」アプリやiCloud Driveがおすすめです。";
+    }, function (e) {
+      if (e && /cancel/i.test(String(e.message || e))) return;
+      el("exportMsg").textContent = "ファイルに保存できませんでした。「コピーする」を使ってください。";
+    });
+  });
+  if (IS_APP) {
+    el("saveExport").hidden = false;
+    el("copyExport").className = "btn ghost";
+    el("shareLead").textContent = "今の地図を1枚の画像にして、写真への保存やSNSへの投稿ができます。";
+    el("storeNote").textContent = "記録はこのiPhoneに保存され、iCloudバックアップにも含まれます。念のため、ときどき書き出しもしておくと安心です。";
+  }
   el("copyExport").addEventListener("click", function () {
     var ta = el("exportText");
     function fallback() { ta.focus(); ta.select(); el("exportMsg").textContent = "全体を選択しました。長押しでコピーしてください。"; }
@@ -752,7 +814,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 
   buildMap();
   renderAll();
-})();
+});
 </script>
 
 </body>

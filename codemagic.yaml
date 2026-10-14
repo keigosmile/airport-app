@@ -1,5 +1,5 @@
-# 空港制覇 ビルド設定（Codemagic）※おかきバトルの設定を流用
-# iOS: ビルドしてTestFlightへ自動送信 / Android: テスト用APKを作成
+# 空港制覇 ビルド設定（Codemagic）※くくノートの設定を流用
+# iOS: ビルドしてTestFlightへ自動送信
 # 「build」ブランチに送ったときだけ、iOS版をビルドする（mainでは自動ビルドしない）
 workflows:
   ios-testflight:
@@ -19,7 +19,7 @@ workflows:
       app_store_connect: okaki        # TestFlightへの送信に使うAPIキー
     environment:
       groups:
-        - apple_signing               # APP_STORE_CONNECT_PRIVATE_KEY / CERT_P12_BASE64 / CERT_P12_PASSWORD（Codemagicの画面で登録）
+        - apple_signing               # APP_STORE_CONNECT_PRIVATE_KEY / CERTIFICATE_PRIVATE_KEY（Codemagicの画面で登録）
       vars:
         BUNDLE_ID: com.keigosmile.kuukouseiha
         APP_STORE_CONNECT_ISSUER_ID: fbde59a9-f3b7-4e5a-a5a2-c13076e4badb
@@ -46,48 +46,78 @@ workflows:
           fi
       - name: 輸出規制の質問をスキップ（暗号化なし）
         script: /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
-      - name: 署名の準備（Appleから証明書とプロファイルを取得）
+      - name: アプリの言語を日本語にする（App Storeの「言語」表示用）
+        script: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion ja" $P || /usr/libexec/PlistBuddy -c "Add :CFBundleDevelopmentRegion string ja" $P
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" $P 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" $P
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:0 string ja" $P
+          sed -i '' 's/developmentRegion = en;/developmentRegion = ja;/' ios/App/App.xcodeproj/project.pbxproj
+          grep -q "^[[:space:]]*ja,$" ios/App/App.xcodeproj/project.pbxproj || perl -0pi -e 's/knownRegions = \(/knownRegions = (\n\t\t\t\tja,/' ios/App/App.xcodeproj/project.pbxproj
+          grep -n "developmentRegion\|knownRegions" -A3 ios/App/App.xcodeproj/project.pbxproj || true
+      - name: 日本語の言語ファイル(ja.lproj)をアプリに入れる（App Storeの「言語」を日本語にするため）
         script: |
           set -e
-          echo "$CERT_P12_BASE64" | base64 --decode > /tmp/dist.p12
-          KEY=""
-          for OSSL in /opt/homebrew/opt/openssl@3/bin/openssl /usr/local/opt/openssl@3/bin/openssl openssl; do
-            command -v "$OSSL" >/dev/null 2>&1 || [ -x "$OSSL" ] || continue
-            KEY=$("$OSSL" pkcs12 -in /tmp/dist.p12 -nocerts -nodes -passin "pass:$CERT_P12_PASSWORD" 2>/dev/null | "$OSSL" pkey 2>/dev/null) && [ -n "$KEY" ] && break
-            KEY=$("$OSSL" pkcs12 -legacy -in /tmp/dist.p12 -nocerts -nodes -passin "pass:$CERT_P12_PASSWORD" 2>/dev/null | "$OSSL" pkey 2>/dev/null) && [ -n "$KEY" ] && break
-            KEY=""
-          done
-          if [ -z "$KEY" ]; then echo "証明書(.p12)から鍵を取り出せませんでした。CERT_P12_BASE64 と CERT_P12_PASSWORD を確認してください"; exit 1; fi
-          export CERTIFICATE_PRIVATE_KEY="$KEY"
+          # xcodeproj はCocoaPodsに同梱されている。無いときだけ入れる（権限エラーならユーザー領域に入れる）
+          gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --no-document || gem install --user-install xcodeproj --no-document
+          mkdir -p ios/App/App/ja.lproj
+          printf '"CFBundleDisplayName" = "空港制覇";\n"CFBundleName" = "空港制覇";\n' > ios/App/App/ja.lproj/InfoPlist.strings
+          ruby -e '
+            require "xcodeproj"
+            pr = Xcodeproj::Project.open("ios/App/App.xcodeproj")
+            t = pr.targets.find { |x| x.name == "App" }
+            g = pr.main_group["App"]
+            unless g.children.any? { |c| c.display_name == "InfoPlist.strings" }
+              vg = g.new_variant_group("InfoPlist.strings")
+              fr = vg.new_reference("ja.lproj/InfoPlist.strings")
+              fr.name = "ja"
+              fr.last_known_file_type = "text.plist.strings"
+              t.resources_build_phase.add_file_reference(vg)
+            end
+            pr.root_object.known_regions = (pr.root_object.known_regions + ["ja"]).uniq
+            pr.root_object.development_region = "ja"
+            pr.save
+            puts "ja.lproj added; regions=" + pr.root_object.known_regions.join(",")
+          ' || { echo "ja.lproj の追加に失敗しました。このままだとApp Storeの言語が英語のままになるので、ビルドを止めます"; exit 1; }
+      - name: 署名の準備（Appleから証明書とプロファイルを取得・なければ自動で作る）
+        script: |
+          set -e
+          if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then echo "CERTIFICATE_PRIVATE_KEY が登録されていません。Codemagicの apple_signing グループを確認してください"; exit 1; fi
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --certificate-key=@env:CERTIFICATE_PRIVATE_KEY --create
           keychain add-certificates
           xcode-project use-profiles
-          rm -f /tmp/dist.p12
       - name: ビルド番号を自動で上げる（Codemagicの通し番号を使う）
         script: cd ios/App && agvtool new-version -all $BUILD_NUMBER
+      - name: アプリのバージョンを設定（リリースのたびにここの数字を上げる）
+        script: |
+          cd ios/App
+          sed -i '' 's/MARKETING_VERSION = [0-9.]*;/MARKETING_VERSION = 1.0.0;/g' App.xcodeproj/project.pbxproj
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.0" App/Info.plist
+          grep -n "MARKETING_VERSION" App.xcodeproj/project.pbxproj || true
       - name: アプリを組み立てる
         script: xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+      - name: 日本語の言語ファイルがアプリに入っているか確認（入っていなければ送信しない）
+        script: |
+          IPA=$(ls build/ios/ipa/*.ipa | head -1)
+          if unzip -l "$IPA" | grep -q "Payload/App.app/ja.lproj/InfoPlist.strings"; then
+            echo "OK: ja.lproj が入っています"
+          else
+            echo "ja.lproj がアプリに入っていません。App Storeの言語が英語のままになるので、TestFlightへ送らずに止めます"
+            unzip -l "$IPA" | grep "\.lproj/" || true
+            exit 1
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
+      email:                            # ビルドの成功・失敗をメールで知らせる
+        recipients:
+          - ke731326@gmail.com
+        notify:
+          success: true
+          failure: true
       app_store_connect:
         auth: integration
         submit_to_testflight: false     # 内部テスト（自分のiPhone）には審査不要。外部テストを始める時にtrueにする
 
-  android-apk:
-    name: Android（テスト用APK）
-    instance_type: mac_mini_m2
-    max_build_duration: 60
-    environment:
-      node: 22
-      java: 21
-    scripts:
-      - name: 部品をインストール
-        script: npm install
-      - name: Androidプロジェクトを生成（アイコン込み）
-        script: npm run android:prepare
-      - name: APKを組み立てる
-        script: cd android && ./gradlew assembleDebug
-    artifacts:
-      - android/app/build/outputs/apk/**/*.apk
