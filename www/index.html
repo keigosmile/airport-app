@@ -69,6 +69,7 @@ button { cursor: pointer; }
 .rank span { opacity: .8; white-space: nowrap; }
 .titles li { align-items: baseline; }
 .titles li .n { white-space: nowrap; }
+.titles li span:first-child { white-space: nowrap; }
 .titles li.locked { color: var(--muted); }
 .titles li.now { background: var(--lv3); color: var(--lv3-ink); font-weight: 700; }
 .titles li.now .n { color: inherit; }
@@ -399,8 +400,9 @@ ksBoot(function () {
   var MAP_W = 770, MAP_H = 868;
   var INSET = { x: 370, y: 628, w: 392, h: 232 };
 
-  // 称号：5空港ごと（最後だけ全空港）
-  var TITLE_NAMES = ["チェックイン前", "ターミナル見習い", "展望デッキの常連", "手荷物の達人", "ラウンジの住人", "乗り継ぎ上手", "滑走路ウォーカー", "空の旅人", "マイルコレクター", "離島ハンター", "日本列島ホッパー", "管制塔の友", "空港ソムリエ", "空の開拓者", "エアポート博士", "空港の主", "日本の空の案内人", "空港の語り部", "翼の王", "空港レジェンド"];
+  // 称号：最後だけ全空港（AIRPORTSを作った後でTITLESを組み立てる）
+  var TITLE_LIST = [[0, "チェックイン前"], [5, "ワクワク新鮮マン"], [10, "自称中級者"], [15, "空港で迷わない人"], [20, "出張族"], [25, "マイルが気になりだした人"], [30, "自慢していいレベル"], [35, "空港トークが止まらない人"], [40, "離島ハンター"], [45, "空港が第二の家"], [50, "ソラ次郎"], [60, "空港ソムリエ"], [70, "空翔ける龍の閃き"], [80, "雲の上の住人"], [90, "大空翼くん"]];
+  var TITLES;
   function rankOf(n) { var r = 0; TITLES.forEach(function (t, i) { if (n >= t[0]) r = i; }); return r; }
   function doneAll() { return AIRPORTS.filter(function (a) { return levelOf(a.id) > 0; }).length; }
   var REGIONS = ["北海道", "東北", "関東・伊豆諸島", "中部", "近畿", "中国", "四国", "九州", "沖縄"];
@@ -411,7 +413,7 @@ ksBoot(function () {
   var AIRPORTS = RAW.map(function (r, i) {
     return { id: r[0], short: r[1], name: r[2], alias: r[3], pref: r[4], region: r[5], category: r[6], iata: r[7], status: r[8], order: i };
   });
-  var TITLES = TITLE_NAMES.map(function (n, i) { return [i * 5, n]; }).concat([[AIRPORTS.length, "空の覇者"]]);
+  TITLES = TITLE_LIST.concat([[AIRPORTS.length, "空を制する者"]]);
   AIRPORTS.sort(function (a, b) { return PREFS.indexOf(a.pref) - PREFS.indexOf(b.pref) || a.order - b.order; });
   var BY_ID = {};
   AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
