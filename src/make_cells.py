@@ -8,7 +8,7 @@ def proj_pref(pref, lon, lat):
     x, y = proj(lon, lat)
     if pref == "沖縄県":
         ox, oy = proj(122.85, 27.95)
-        x, y = 14 + (x - ox) * 1.2, 18 + (y - oy) * 1.2
+        x, y = 376 + (x - ox) * 1.2, 638 + (y - oy) * 1.2
     return x, y
 
 airports = json.load(open(root.parent / "data_airports_jp.json", encoding="utf-8"))["airports"]

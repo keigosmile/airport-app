@@ -31,7 +31,7 @@ for f in src['features']:
         pts=[proj(lon,lat) for lon,lat in ring]
         if name=='沖縄県':
             ox0,oy0=proj(122.85,27.95)
-            pts=[(14+(x-ox0)*1.2, 18+(y-oy0)*1.2) for x,y in pts]
+            pts=[(376+(x-ox0)*1.2, 638+(y-oy0)*1.2) for x,y in pts]   # 右下の枠(x370 y628)に配置
         a=area(pts)
         if a<(0.4 if name=='沖縄県' else 0.6): continue
         s=rdp(pts,0.35)
@@ -53,4 +53,5 @@ print('bbox',min(xs),min(ys),max(xs),max(ys))
 print('prefs',len(out),'parts',sum(len(v) for v in out.values()))
 s=json.dumps(out,ensure_ascii=False,separators=(',',':'))
 print('bytes',len(s.encode()))
-json.dump(out,open('/tmp/claude-0/mapbuild/paths.json','w'),ensure_ascii=False,separators=(',',':'))
+import pathlib
+json.dump(out,open(pathlib.Path(__file__).resolve().parent/'map_paths.json','w'),ensure_ascii=False,separators=(',',':'))

@@ -59,7 +59,17 @@ button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ヘッダー：出発案内板風 */
-.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: #15203a; color: #ffc43a; padding: 12px 16px 10px; }
+.top { background: #15203a; color: #ffc43a; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px; }
+.rank { max-width: 760px; margin: 8px auto 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 12px; }
+.rank b { font-size: 14px; letter-spacing: .04em; white-space: nowrap; }
+.rank span { opacity: .8; white-space: nowrap; }
+.titles li { align-items: baseline; }
+.titles li .n { white-space: nowrap; }
+.titles li.locked { color: var(--muted); }
+.titles li.now { background: var(--lv3); color: var(--lv3-ink); font-weight: 700; }
+.titles li.now .n { color: inherit; }
+.rank-note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.rank-note span { white-space: nowrap; }
 .top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; max-width: 760px; margin: 0 auto; }
 .brand { font-size: 13px; letter-spacing: .18em; font-weight: 700; }
 .brand small { display: block; letter-spacing: .08em; font-weight: 500; opacity: .75; font-size: 11px; }
@@ -201,6 +211,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     <div class="brand">空港制覇<small>国内空港めぐり記録</small></div>
     <div class="score" id="score">0<span>/97</span></div>
   </div>
+  <div class="rank" id="rank"></div>
   <div class="bar"><i id="barFill"></i></div>
   <div class="basis" role="group" aria-label="数える空港">
     <button type="button" id="basisAll" aria-pressed="true">定期便なしも含む</button>
@@ -259,6 +270,9 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
       <div class="stat"><b id="stVisits">0</b><small>記録した回数</small></div>
       <div class="stat"><b id="stLv3">0</b><small>発着した空港</small></div>
     </div>
+    <h3>称号</h3>
+    <ul class="list titles" id="stTitles"></ul>
+    <p class="rank-note"><span>称号は全国の空港の制覇数で決まります。</span><br><span>定期便なしの空港も数えます。</span></p>
     <h3>地方別</h3>
     <div id="stRegions"></div>
     <h3>よく使う空港</h3>
@@ -371,13 +385,17 @@ ksBoot(function () {
   "use strict";
   // [id, 短縮名, 正式名称, 愛称, 都道府県, 地方, 分類, IATA, 状態]
   var RAW = __AIRPORTS__;
-  // 都道府県の形（地球地図日本を加工。沖縄県は左上の枠内に1.2倍で配置）
+  // 都道府県の形（地球地図日本を加工。沖縄県は右下の枠内に1.2倍で配置）
   var MAP = __MAP__;
   // 空港の位置と、県の中で一番近い空港の範囲（なわばり）
   var GEO = __GEO__;
   var MAP_W = 770, MAP_H = 868;
-  var INSET = { x: 8, y: 8, w: 392, h: 232 };
+  var INSET = { x: 370, y: 628, w: 392, h: 232 };
 
+  // 称号：5空港ごと（最後だけ全空港）
+  var TITLE_NAMES = ["チェックイン前", "ターミナル見習い", "展望デッキの常連", "手荷物の達人", "ラウンジの住人", "乗り継ぎ上手", "滑走路ウォーカー", "空の旅人", "マイルコレクター", "離島ハンター", "日本列島ホッパー", "管制塔の友", "空港ソムリエ", "空の開拓者", "エアポート博士", "空港の主", "日本の空の案内人", "空港の語り部", "翼の王", "空港レジェンド"];
+  function rankOf(n) { var r = 0; TITLES.forEach(function (t, i) { if (n >= t[0]) r = i; }); return r; }
+  function doneAll() { return AIRPORTS.filter(function (a) { return levelOf(a.id) > 0; }).length; }
   var REGIONS = ["北海道", "東北", "関東・伊豆諸島", "中部", "近畿", "中国", "四国", "九州", "沖縄"];
   var PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
   var STATUS_LABEL = { active: "定期便あり", suspended: "定期便休止中", no_scheduled: "定期便なし" };
@@ -386,6 +404,7 @@ ksBoot(function () {
   var AIRPORTS = RAW.map(function (r, i) {
     return { id: r[0], short: r[1], name: r[2], alias: r[3], pref: r[4], region: r[5], category: r[6], iata: r[7], status: r[8], order: i };
   });
+  var TITLES = TITLE_NAMES.map(function (n, i) { return [i * 5, n]; }).concat([[AIRPORTS.length, "空の覇者"]]);
   AIRPORTS.sort(function (a, b) { return PREFS.indexOf(a.pref) - PREFS.indexOf(b.pref) || a.order - b.order; });
   var BY_ID = {};
   AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
@@ -433,9 +452,9 @@ ksBoot(function () {
   try { reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
 
   var toastTimer;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = el("toast"); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 1800);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 1800);
   }
 
   // ---- 地図の組み立て（最初に1回だけ） ----
@@ -464,7 +483,7 @@ ksBoot(function () {
     });
     el("mapwrap").innerHTML = '<svg viewBox="0 0 ' + MAP_W + " " + MAP_H + '" role="img" aria-label="都道府県ごとの空港制覇の地図"><defs>' + defs + "</defs>" +
       '<rect class="inset" x="' + INSET.x + '" y="' + INSET.y + '" width="' + INSET.w + '" height="' + INSET.h + '" rx="10"/>' +
-      '<text class="inset-label" x="' + (INSET.x + 12) + '" y="' + (INSET.y + INSET.h - 12) + '">沖縄県</text>' + body + '<g id="dots">' + dots + "</g></svg>";
+      '<text class="inset-label" text-anchor="end" x="' + (INSET.x + INSET.w - 12) + '" y="' + (INSET.y + 26) + '">沖縄県</text>' + body + '<g id="dots">' + dots + "</g></svg>";
   }
   var builtBasis = null;
   function buildCells() {
@@ -541,6 +560,8 @@ ksBoot(function () {
     var done = pool.filter(function (a) { return levelOf(a.id) > 0; }).length;
     el("score").innerHTML = done + "<span>/" + pool.length + "</span>";
     el("barFill").style.width = (pool.length ? done / pool.length * 100 : 0) + "%";
+    var all = doneAll(), ri = rankOf(all), nx = TITLES[ri + 1];
+    el("rank").innerHTML = "<b>称号 " + esc(TITLES[ri][1]) + "</b>" + (nx ? "<span>次の称号まであと " + (nx[0] - all) + " 空港</span>" : "<span>全空港を制覇しました</span>");
     el("basisAll").setAttribute("aria-pressed", ui.basis === "all");
     el("basisActive").setAttribute("aria-pressed", ui.basis === "active");
   }
@@ -575,6 +596,11 @@ ksBoot(function () {
     var pool = AIRPORTS.filter(inBasis);
     el("stDone").textContent = pool.filter(function (a) { return levelOf(a.id) > 0; }).length;
     el("stVisits").textContent = state.visits.length;
+    var all = doneAll(), ri = rankOf(all);
+    el("stTitles").innerHTML = TITLES.map(function (t, i) {
+      var cls = i === ri ? "now" : i > ri ? "locked" : "";
+      return '<li class="' + cls + '"><span>' + (i > ri ? "？？？" : esc(t[1])) + '</span><span class="n">' + (i === ri ? "いまここ・" : "") + t[0] + "空港〜</span></li>";
+    }).join("");
     el("stLv3").textContent = pool.filter(function (a) { return levelOf(a.id) === 3; }).length;
     el("stRegions").innerHTML = REGIONS.map(function (r) {
       var all = pool.filter(function (a) { return a.region === r; });
@@ -641,6 +667,7 @@ ksBoot(function () {
 
     // 文字
     g.fillStyle = amber; g.font = "700 40px " + font; g.fillText("空港制覇", 64, 92);
+    g.textAlign = "right"; g.font = "700 34px " + font; g.fillText("称号 " + TITLES[rankOf(doneAll())][1], W - 64, 92); g.textAlign = "left";
     g.font = "700 140px " + mono; g.fillText(String(done), 64, 238);
     var w = g.measureText(String(done)).width;
     g.font = "500 60px " + mono; g.globalAlpha = .75; g.fillText("/ " + pool.length, 84 + w, 238); g.globalAlpha = 1;
@@ -736,11 +763,13 @@ ksBoot(function () {
 
   document.querySelectorAll(".seg button").forEach(function (b) { b.addEventListener("click", function () { ui.sheetLv = Number(b.dataset.lv); renderSheet(); }); });
   el("addVisit").addEventListener("click", function () {
-    var wasNew = levelOf(ui.sheetId) === 0;
+    var wasNew = levelOf(ui.sheetId) === 0, rankBefore = rankOf(doneAll());
     state.visits.push({ id: uid(), airportId: ui.sheetId, level: ui.sheetLv, ym: el("visitYm").value || "", note: el("visitNote").value.trim().slice(0, 60), createdAt: new Date().toISOString() });
     persist(); el("visitYm").value = ""; el("visitNote").value = "";
     renderSheet(); renderAll();
-    toast(wasNew ? BY_ID[ui.sheetId].short + "を制覇しました" : "記録しました");
+    var rankAfter = rankOf(doneAll());
+    if (rankAfter > rankBefore) toast("称号アップ！「" + TITLES[rankAfter][1] + "」", 3600);
+    else toast(wasNew ? BY_ID[ui.sheetId].short + "を制覇しました" : "記録しました");
   });
   el("visitList").addEventListener("click", function (e) {
     var b = e.target.closest("[data-del]"); if (!b) return;
