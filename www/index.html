@@ -102,7 +102,7 @@ button { cursor: pointer; }
 .rank-note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 .rank-note span { white-space: nowrap; }
 
-main { max-width: 760px; margin: 0 auto; padding: 12px 16px 110px; }
+main { max-width: 760px; margin: 0 auto; padding: 12px 16px calc(110px + var(--adh, 0px)); }
 
 /* 地図 */
 .mapwrap { position: relative; background: var(--sea); border-radius: 14px; padding: 4px; }
@@ -190,11 +190,13 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 .slide-note span { display: inline-block; }
 
 /* 下部タブ */
-.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.tabs { position: fixed; left: 0; right: 0; bottom: var(--adh, 0px); z-index: 6; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); }
 .tabs button { flex: 1; max-width: 180px; border: 0; background: transparent; padding: 12px 0 13px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .tabs button[aria-selected="true"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--accent); }
 
 /* シート */
+html.has-ad .tabs { padding-bottom: 0; }
+html.has-ad .sheet { padding-bottom: calc(20px + var(--adh, 0px) + env(safe-area-inset-bottom, 0px)); }
 .scrim { position: fixed; inset: 0; background: rgba(8, 12, 22, .45); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
 .sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
 .sheet-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
@@ -230,7 +232,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 .mini { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 4px 9px; font-size: 12px; flex: none; }
 .mini.warn { border-color: var(--danger); color: var(--danger); }
 .back { border: 0; background: transparent; color: var(--muted); padding: 0; font-size: 13px; margin-bottom: 6px; }
-.toast { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 20; white-space: nowrap; }
+.toast { position: fixed; left: 50%; bottom: calc(70px + var(--adh, 0px) + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 13px; z-index: 20; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .bar i, .mapwrap .cell { transition: none; } }
 </style>
 </head>
@@ -611,6 +613,27 @@ ksBoot(function () {
   var ui = { filter: "all", basis: "all", tab: "map", sheetId: null, sheetLv: 3, pendingDelete: null, pref: null, fromPref: null };
 
   function persist() { store.save(state); }
+
+  // ---- 広告（下のバナー1つだけ。アプリ版のみ。表示できなければ何も出さない） ----
+  var AD = { unit: "ca-app-pub-6069104660969962/5337387819", testing: true };   // testing=true の間はテスト広告。公開ビルドでfalseにする
+  function setAdHeight(h) {
+    document.documentElement.style.setProperty("--adh", (h || 0) + "px");
+    document.documentElement.classList.toggle("has-ad", h > 0);
+  }
+  function initAds() {
+    if (!IS_APP) return;
+    var A = ksNative().AdMob; if (!A) return;
+    try {
+      A.addListener("bannerAdSizeChanged", function (s) { setAdHeight(s && s.height ? s.height : 0); });
+      A.addListener("bannerAdFailedToLoad", function () { setAdHeight(0); });
+    } catch (e) {}
+    setTimeout(function () {
+      Promise.resolve().then(function () { return A.requestTrackingAuthorization(); }).catch(function () {})
+        .then(function () { return A.initialize({ initializeForTesting: AD.testing }); })
+        .then(function () { return A.showBanner({ adId: AD.unit, adSize: "ADAPTIVE_BANNER", position: "BOTTOM_CENTER", margin: 0, isTesting: AD.testing }); })
+        .catch(function () { setAdHeight(0); });
+    }, 800);
+  }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function levelOf(id) {
     var m = 0;
@@ -1028,6 +1051,7 @@ ksBoot(function () {
 
   buildMap();
   renderAll();
+  initAds();
 });
 </script>
 

@@ -46,6 +46,18 @@ workflows:
           fi
       - name: 輸出規制の質問をスキップ（暗号化なし）
         script: /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
+      - name: 広告（AdMob）の設定をInfo.plistに入れる
+        script: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" $P 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-6069104660969962~6212230649" $P
+          /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" $P 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string 広告をあなたに合ったものにするために、端末の識別子を使うことの許可をお願いします。許可しなくてもアプリはすべて使えます。" $P
+          /usr/libexec/PlistBuddy -c "Delete :SKAdNetworkItems" $P 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" $P
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0 dict" $P
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" $P
+          /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" $P
       - name: アプリの言語を日本語にする（App Storeの「言語」表示用）
         script: |
           P=ios/App/App/Info.plist
