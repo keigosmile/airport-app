@@ -174,7 +174,14 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 .btn.danger { background: var(--danger); color: #fff; }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .msg { font-size: 13px; margin-top: 8px; min-height: 1.2em; }
-#shareImg { display: block; width: 100%; max-width: 420px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--line); }
+.slides { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin-top: 10px; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 420px; }
+.slides::-webkit-scrollbar { display: none; }
+.slides img { flex: 0 0 100%; width: 100%; scroll-snap-align: center; border-radius: 10px; border: 1px solid var(--line); display: block; }
+.dots { display: flex; justify-content: center; gap: 8px; margin-top: 10px; max-width: 420px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--ink); }
+.slide-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); text-align: center; max-width: 420px; }
+.slide-note span { display: inline-block; }
 
 /* 下部タブ */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -259,7 +266,12 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
         <button type="button" class="btn ghost" id="sendShare" hidden>保存・共有する</button>
       </div>
       <div class="msg" id="shareMsg"></div>
-      <img id="shareImg" alt="空港制覇の地図" hidden>
+      <div class="slides" id="shareSlides" hidden>
+        <img alt="空港制覇の地図（定期便のある空港）">
+        <img alt="空港制覇の地図（定期便なしも含む）">
+      </div>
+      <div class="dots" id="shareDots" hidden><i class="on"></i><i></i></div>
+      <p class="slide-note" id="shareNote" hidden><span>横にスワイプすると、</span><span>定期便なしも含む版が出ます。</span></p>
     </div>
     <p class="credit">地図：地球地図日本（国土地理院）を加工して作成</p>
   </section>
@@ -282,7 +294,6 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
   <section id="viewStats" hidden>
     <div class="stat-row">
       <div class="stat"><b id="stDone">0</b><small>制覇した空港</small></div>
-      <div class="stat"><b id="stVisits">0</b><small>記録した回数</small></div>
       <div class="stat"><b id="stLv3">0</b><small>発着した空港</small></div>
     </div>
     <h3>称号</h3>
@@ -290,8 +301,6 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
     <p class="rank-note"><span>称号は全国の空港の制覇数で決まります。</span><br><span>定期便なしの空港も数えます。</span></p>
     <h3>地方別</h3>
     <div id="stRegions"></div>
-    <h3>よく使う空港</h3>
-    <ul class="list" id="stTop"></ul>
     <h3>年ごとの新規制覇</h3>
     <ul class="list" id="stYears"></ul>
   </section>
@@ -566,9 +575,9 @@ ksBoot(function () {
     el("prefSub").textContent = d + "/" + list.length + " 空港" + (d === list.length ? "・制覇済み" : "");
     el("prefMeter").style.width = (d / list.length * 100) + "%";
     el("prefList").innerHTML = list.map(function (a) {
-      var lv = levelOf(a.id), n = visitsOf(a.id).length;
+      var lv = levelOf(a.id);
       return '<button type="button" class="prow" data-id="' + esc(a.id) + '"><span class="pn">' + esc(a.name) +
-        "<small>" + esc([a.alias, a.iata, STATUS_LABEL[a.status]].filter(Boolean).join("・")) + (n ? "・" + n + "回" : "") + "</small></span>" +
+        "<small>" + esc([a.alias, a.iata, STATUS_LABEL[a.status]].filter(Boolean).join("・")) + "</small></span>" +
         '<span class="badge" data-lv="' + lv + '">' + LV_LABEL[lv] + "</span></button>";
     }).join("");
   }
@@ -615,7 +624,6 @@ ksBoot(function () {
   function renderStats() {
     var pool = AIRPORTS.filter(inBasis);
     el("stDone").textContent = pool.filter(function (a) { return levelOf(a.id) > 0; }).length;
-    el("stVisits").textContent = state.visits.length;
     var all = doneAll(), ri = rankOf(all);
     el("stTitles").innerHTML = TITLES.map(function (t, i) {
       var cls = i === ri ? "now" : i > ri ? "locked" : "";
@@ -628,10 +636,6 @@ ksBoot(function () {
       var pct = all.length ? Math.round(d / all.length * 100) : 0;
       return '<div class="rbar"><span>' + esc(r) + '</span><span class="track"><i style="width:' + pct + '%"></i></span><span class="n">' + d + "/" + all.length + "</span></div>";
     }).join("");
-    var counts = {};
-    state.visits.forEach(function (v) { counts[v.airportId] = (counts[v.airportId] || 0) + 1; });
-    var top = Object.keys(counts).filter(function (k) { return BY_ID[k]; }).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 5);
-    el("stTop").innerHTML = top.length ? top.map(function (k) { return "<li><span>" + esc(BY_ID[k].short) + '</span><span class="n">' + counts[k] + "回</span></li>"; }).join("") : '<li><span class="n">記録するとここに表示されます</span></li>';
     var first = {};
     state.visits.forEach(function (v) {
       var y = v.ym ? v.ym.slice(0, 4) : "日付なし";
@@ -645,8 +649,8 @@ ksBoot(function () {
 
   // ---- シェア画像（地図を描く） ----
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
-  var lastShare = null;
-  function makeShare() {
+  function drawShare(basis) {
+    var keepBasis = ui.basis; ui.basis = basis;
     var W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
     var g = c.getContext("2d");
     var navy = "#15203a", amber = "#ffc43a", land = "#2b3754", none = "#1b2540", textDim = "#c9d2e6";
@@ -705,10 +709,20 @@ ksBoot(function () {
     g.textAlign = "left";
     g.fillStyle = "#8b97b4"; g.font = "500 20px " + font; g.fillText("地図：地球地図日本（国土地理院）を加工して作成", 64, H - 18);
     var url = c.toDataURL("image/png");
-    var img = el("shareImg"); img.src = url; img.hidden = false;
-    el("sendShare").hidden = !IS_APP; el("shareMsg").textContent = "";
-    lastShare = url;
+    ui.basis = keepBasis;
+    return url;
   }
+  var shareUrls = [null, null];
+  function makeShare() {
+    shareUrls = [drawShare("active"), drawShare("all")];
+    var box = el("shareSlides"), imgs = box.querySelectorAll("img");
+    imgs[0].src = shareUrls[0]; imgs[1].src = shareUrls[1];
+    box.hidden = false; box.scrollLeft = 0; el("shareDots").hidden = false; el("shareNote").hidden = false;
+    setDots(0);
+    el("sendShare").hidden = !IS_APP; el("shareMsg").textContent = "";
+  }
+  function shareIndex() { var b = el("shareSlides"); return b.scrollLeft > b.clientWidth / 2 ? 1 : 0; }
+  function setDots(i) { el("shareDots").querySelectorAll("i").forEach(function (d, k) { d.className = k === i ? "on" : ""; }); }
 
   // ---- データ ----
   function renderExport() { el("exportText").value = JSON.stringify({ app: "kuukou-seiha", version: 1, exportedAt: new Date().toISOString(), visits: state.visits }); }
@@ -749,7 +763,7 @@ ksBoot(function () {
   function renderSheet() {
     document.querySelectorAll(".seg button").forEach(function (b) { b.setAttribute("aria-pressed", Number(b.dataset.lv) === ui.sheetLv); });
     var vs = visitsOf(ui.sheetId).sort(function (a, b) { return (b.ym || "").localeCompare(a.ym || "") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
-    el("visitsTitle").textContent = "これまでの記録（" + vs.length + "回）";
+    el("visitsTitle").textContent = "これまでの記録";
     el("visitList").innerHTML = vs.length ? vs.map(function (v) {
       var pending = ui.pendingDelete === v.id;
       return '<div class="visit"><div class="meta">' + LV_LABEL[v.level] + "<small>" + fmtYm(v.ym) + (v.note ? "・" + esc(v.note) : "") + "</small></div>" +
@@ -814,9 +828,10 @@ ksBoot(function () {
   });
 
   el("makeShare").addEventListener("click", makeShare);
+  el("shareSlides").addEventListener("scroll", function () { setDots(shareIndex()); });
   el("sendShare").addEventListener("click", function () {
-    if (!lastShare) return;
-    shareFile("kuukou-seiha.png", lastShare.split(",")[1], true).catch(function (e) {
+    var u = shareUrls[shareIndex()]; if (!u) return;
+    shareFile("kuukou-seiha.png", u.split(",")[1], true).catch(function (e) {
       if (e && /cancel/i.test(String(e.message || e))) return;
       el("shareMsg").textContent = "保存できませんでした。画像を長押しして保存してください。";
     });
