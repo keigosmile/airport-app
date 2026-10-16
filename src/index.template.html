@@ -65,7 +65,7 @@ button { cursor: pointer; }
 .score { font-family: var(--font-code); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 700; line-height: 1; color: #ffc43a; }
 .score span { font-size: 16px; color: #8fa0c4; font-weight: 500; }
 .rank { max-width: 760px; margin: 12px auto 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 10px; background: rgba(255, 255, 255, .06); border-radius: 16px; }
-.rank .ico { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font-size: 25px; line-height: 1; background: rgba(150, 190, 255, .16); }
+.rank .ico { flex: none; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; background: rgba(150, 190, 255, .16); color: #f3f6fc; --acc: #7db4ff; }
 .rank .rk { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .rank b { font-size: 15px; line-height: 1.35; font-weight: 700; color: #f3f6fc; }
 .rank .rk > span { font-size: 12px; color: #8fa0c4; white-space: nowrap; }
@@ -78,14 +78,20 @@ button { cursor: pointer; }
 .basis button[aria-pressed="true"] { background: #f3f6fc; color: #15203a; font-weight: 700; }
 .top { text-align: left; }
 .list.titles li { flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; }
-.titles .tic { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; line-height: 1; background: var(--line); }
+.titles .tic { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--line); color: var(--ink); --acc: #4a86e8; }
 .titles .tt { display: flex; flex-direction: column-reverse; align-items: flex-start; min-width: 0; gap: 1px; text-align: left; }
 .titles li .n { white-space: nowrap; font-size: 12px; }
 .titles li.locked { color: var(--muted); }
-.titles li.locked .tic { filter: grayscale(1); opacity: .6; }
+.titles li.locked .tic { opacity: .55; }
 .titles li.now { background: var(--lv3); color: var(--lv3-ink); font-weight: 700; }
-.titles li.now .tic { background: rgba(0, 0, 0, .14); }
+.titles li.now .tic { background: rgba(0, 0, 0, .16); color: var(--lv3-ink); --acc: #7db4ff; }
 .titles li.now .n { color: inherit; }
+.icon { width: 28px; height: 28px; overflow: visible; }
+.titles .icon { width: 26px; height: 26px; }
+.ic-s { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.ic-a { fill: none; stroke: var(--acc); stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+.ic-A { fill: var(--acc); stroke: none; }
+.ic-f { fill: currentColor; stroke: none; }
 .rank-note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 .rank-note span { white-space: nowrap; }
 
@@ -372,6 +378,7 @@ textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border
 <div class="toast" id="toast" hidden></div>
 
 <script>
+__ICONS__
 var KS_KEY = "kuukou-seiha.v1";
 function ksNative() { return (window.Capacitor && window.Capacitor.Plugins) || {}; }
 function ksIsApp() { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } }
@@ -402,7 +409,7 @@ ksBoot(function () {
 
   // 称号：最後だけ全空港（AIRPORTSを作った後でTITLESを組み立てる）
   // 称号。「|」は改行してよい位置（画面が狭いときだけここで折り返す）
-  var TITLE_LIST = [[0, "空港に行くだけで|旅行した気になってる人", "🧳"], [5, "ラウンジのために年会費払って|元を取れてない人", "💳"], [10, "搭乗ゲートの前で|とりあえず自撮りする人", "🤳"], [15, "自称中級者のくせに|乗り継ぎで迷う人", "🧭"], [20, "陸路のほうが速いのに|無理に空路を選んで|内心穏やかじゃない人", "🚄"], [25, "空人（そらんちゅ）って|呼ばれたくて|誰にも呼ばれない人", "🙋"], [30, "制覇数を自慢するけど|誰にも刺さらない人", "🥱"], [35, "空港トークで|友達が減り続けてる人", "📉"], [40, "空港しか見てないのに|旅行したと言い張る人", "🙈"], [45, "いよいよ|空人（そらんちゅ）Tシャツを|着てしまう人", "👕"], [50, "空港の売店で|試食し過ぎて飽きた人", "🍪"], [60, "空港ソムリエの資格を取ろうとしたけど、|そんな資格存在してなかった人", "🍷"], [70, "前世がハトの人", "🕊️"], [80, "来世は鷹に|なりたくなった人", "🦅"], [90, "いよいよ、の人", "😇"]];
+  var TITLE_LIST = [[0, "空港に行くだけで|旅行した気になってる人", "bag"], [5, "ラウンジのために年会費払って|元を取れてない人", "card"], [10, "搭乗ゲートの前で|とりあえず自撮りする人", "selfie"], [15, "自称中級者のくせに|乗り継ぎで迷う人", "compass"], [20, "陸路のほうが速いのに|無理に空路を選んで|内心穏やかじゃない人", "train"], [25, "空人（そらんちゅ）って|呼ばれたくて|誰にも呼ばれない人", "hand"], [30, "制覇数を自慢するけど|誰にも刺さらない人", "yawn"], [35, "空港トークで|友達が減り続けてる人", "chart"], [40, "空港しか見てないのに|旅行したと言い張る人", "hide"], [45, "いよいよ|空人（そらんちゅ）Tシャツを|着てしまう人", "tee"], [50, "空港の売店で|試食し過ぎて飽きた人", "cookie"], [60, "空港ソムリエの資格を取ろうとしたけど、|そんな資格存在してなかった人", "wine"], [70, "前世がハトの人", "dove"], [80, "来世は鷹に|なりたくなった人", "eagle"], [90, "いよいよ、の人", "angel"]];
   var TITLES;
   function plain(s) { return s.replace(/\|/g, ""); }
   function phr(s) { return s.split("|").map(function (x) { return '<span class="ph">' + esc(x) + "</span>"; }).join(""); }
@@ -416,7 +423,7 @@ ksBoot(function () {
   var AIRPORTS = RAW.map(function (r, i) {
     return { id: r[0], short: r[1], name: r[2], alias: r[3], pref: r[4], region: r[5], category: r[6], iata: r[7], status: r[8], order: i };
   });
-  TITLES = TITLE_LIST.concat([[AIRPORTS.length, "空を制した人", "👑"]]);
+  TITLES = TITLE_LIST.concat([[AIRPORTS.length, "空を制した人", "crown"]]);
   AIRPORTS.sort(function (a, b) { return PREFS.indexOf(a.pref) - PREFS.indexOf(b.pref) || a.order - b.order; });
   var BY_ID = {};
   AIRPORTS.forEach(function (a) { BY_ID[a.id] = a; });
@@ -573,7 +580,7 @@ ksBoot(function () {
     el("score").innerHTML = done + "<span>/" + pool.length + "</span>";
     el("barFill").style.width = (pool.length ? done / pool.length * 100 : 0) + "%";
     var all = doneAll(), ri = rankOf(all), nx = TITLES[ri + 1];
-    el("rank").innerHTML = '<span class="ico" aria-hidden="true">' + TITLES[ri][2] + '</span><div class="rk"><b>' + phr(TITLES[ri][1]) + "</b><span>" + (nx ? "あと " + (nx[0] - all) + " 空港で次の称号" : "全空港を制覇しました") + "</span></div>";
+    el("rank").innerHTML = '<span class="ico">' + iconSvg(TITLES[ri][2]) + '</span><div class="rk"><b>' + phr(TITLES[ri][1]) + "</b><span>" + (nx ? "あと " + (nx[0] - all) + " 空港で次の称号" : "全空港を制覇しました") + "</span></div>";
     el("basisAll").setAttribute("aria-pressed", ui.basis === "all");
     el("basisActive").setAttribute("aria-pressed", ui.basis === "active");
   }
@@ -611,7 +618,7 @@ ksBoot(function () {
     var all = doneAll(), ri = rankOf(all);
     el("stTitles").innerHTML = TITLES.map(function (t, i) {
       var cls = i === ri ? "now" : i > ri ? "locked" : "";
-      return '<li class="' + cls + '"><span class="tic" aria-hidden="true">' + (i > ri ? "🔒" : t[2]) + '</span><span class="tt"><span>' + (i > ri ? "？？？" : phr(t[1])) + '</span><span class="n">' + (i === ri ? "いまここ・" : "") + t[0] + "空港〜</span></span></li>";
+      return '<li class="' + cls + '"><span class="tic">' + iconSvg(i > ri ? "lock" : t[2]) + '</span><span class="tt"><span>' + (i > ri ? "？？？" : phr(t[1])) + '</span><span class="n">' + (i === ri ? "いまここ・" : "") + t[0] + "空港〜</span></span></li>";
     }).join("");
     el("stLv3").textContent = pool.filter(function (a) { return levelOf(a.id) === 3; }).length;
     el("stRegions").innerHTML = REGIONS.map(function (r) {
@@ -679,10 +686,14 @@ ksBoot(function () {
 
     // 文字
     g.fillStyle = amber; g.font = "700 40px " + font; g.fillText("空港制覇", 64, 92);
-    var rk = TITLES[rankOf(doneAll())], ttl = rk[2] + " " + plain(rk[1]), fs = 34;
-    g.textAlign = "right";
-    do { g.font = "700 " + fs + "px " + font; fs -= 1; } while (g.measureText(ttl).width > W - 64 - 300 && fs > 18);
-    g.fillText(ttl, W - 64, 92); g.textAlign = "left";
+    var rk = TITLES[rankOf(doneAll())], ttl = plain(rk[1]), fs = 34, chip = 64, cx = W - 64 - chip, tr = cx - 18;
+    g.fillStyle = "rgba(150,190,255,.16)"; g.beginPath();
+    g.moveTo(cx + 18, 56); g.arcTo(cx + chip, 56, cx + chip, 56 + chip, 18); g.arcTo(cx + chip, 56 + chip, cx, 56 + chip, 18);
+    g.arcTo(cx, 56 + chip, cx, 56, 18); g.arcTo(cx, 56, cx + chip, 56, 18); g.closePath(); g.fill();
+    drawIcon(g, rk[2], cx + 9, 65, 46, "#f3f6fc", "#7db4ff");
+    g.textAlign = "right"; g.fillStyle = "#f3f6fc";
+    do { g.font = "700 " + fs + "px " + font; fs -= 1; } while (g.measureText(ttl).width > tr - 290 && fs > 18);
+    g.fillText(ttl, tr, 98); g.textAlign = "left";
     g.font = "700 140px " + mono; g.fillText(String(done), 64, 238);
     var w = g.measureText(String(done)).width;
     g.font = "500 60px " + mono; g.globalAlpha = .75; g.fillText("/ " + pool.length, 84 + w, 238); g.globalAlpha = 1;
@@ -691,7 +702,7 @@ ksBoot(function () {
     g.fillText(ui.basis === "all" ? "国内の空港" : "定期便のある空港", W - 64, 170);
     g.fillText("塗りつぶした県 " + full + "/" + withAir.length, W - 64, 222);
     g.textAlign = "left";
-    g.fillStyle = "#8b97b4"; g.font = "500 22px " + font; g.fillText("地図：地球地図日本（国土地理院）を加工して作成", 64, H - 34);
+    g.fillStyle = "#8b97b4"; g.font = "500 20px " + font; g.fillText("地図：地球地図日本（国土地理院）を加工して作成", 64, H - 18);
     var url = c.toDataURL("image/png");
     var img = el("shareImg"); img.src = url; img.hidden = false;
     el("sendShare").hidden = !IS_APP; el("shareMsg").textContent = "";
@@ -783,7 +794,7 @@ ksBoot(function () {
     persist(); el("visitYm").value = ""; el("visitNote").value = "";
     renderSheet(); renderAll();
     var rankAfter = rankOf(doneAll());
-    if (rankAfter > rankBefore) toast("称号アップ！ " + TITLES[rankAfter][2] + " " + plain(TITLES[rankAfter][1]), 3600);
+    if (rankAfter > rankBefore) toast("称号アップ！ " + plain(TITLES[rankAfter][1]), 3600);
     else toast(wasNew ? BY_ID[ui.sheetId].short + "を制覇しました" : "記録しました");
   });
   el("visitList").addEventListener("click", function (e) {

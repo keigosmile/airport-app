@@ -4,6 +4,7 @@ root = pathlib.Path(__file__).resolve().parent
 t = (root / "index.template.html").read_text(encoding="utf-8")
 t = t.replace("__AIRPORTS__", (root / "airports_compact.json").read_text(encoding="utf-8").strip())
 t = t.replace("__MAP__", (root / "map_paths.json").read_text(encoding="utf-8").strip())
+t = t.replace("__ICONS__", (root / "icons.js").read_text(encoding="utf-8").strip())
 t = t.replace("__GEO__", (root / "airport_geo.json").read_text(encoding="utf-8").strip())
 # アプリ用：完全なHTML文書
 doc = '<!doctype html>\n<html lang="ja">\n<head>\n<meta charset="utf-8">\n' + t.replace("<script>", "</head>\n<body>\n<script>", 0)
