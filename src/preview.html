@@ -608,7 +608,7 @@ ksBoot(function () {
   function persist() { store.save(state); }
 
   // ---- 広告（下のバナー1つだけ。アプリ版のみ。表示できなければ何も出さない） ----
-  var AD = { unit: "ca-app-pub-6069104660969962/5337387819", testing: true };   // testing=true の間はテスト広告。公開ビルドでfalseにする
+  var AD = { unit: "ca-app-pub-6069104660969962/5337387819", testing: false };   // true にするとテスト広告。公開版は false
   function setAdHeight(h) {
     document.documentElement.style.setProperty("--adh", (h || 0) + "px");
     document.documentElement.classList.toggle("has-ad", h > 0);
