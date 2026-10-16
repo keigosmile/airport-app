@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>空港制覇</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <style>
 /* Layout: 最初の画面は日本地図。都道府県ごとに空港の制覇割合だけ下から塗り上がる。下部タブで「地図／一覧／統計／データ」を切り替える */
 :root {
@@ -57,6 +57,8 @@ p, .hint, .msg, .empty-note, .sub, .credit, .maplegend span, .legend span, h2, h
 .stat small, .pchip .row span, .btn, .tabs button, .seg button, .chip, .basis button, .badge, .back { white-space: nowrap; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+html, body, button, a, svg, label { touch-action: manipulation; }
+input, textarea, select { font-size: 16px; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
