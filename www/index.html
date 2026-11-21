@@ -203,6 +203,7 @@ html.has-ad .sheet { padding-bottom: calc(20px + var(--adh, 0px) + env(safe-area
 .sheet-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .sheet h2 { margin: 0; font-size: 20px; }
 .sheet .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.sheet .wiki { display: inline-block; margin-top: 6px; font-size: 13px; color: var(--accent-ink, var(--ink)); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
 .close { border: 0; background: var(--bg); border-radius: 999px; width: 32px; height: 32px; font-size: 18px; line-height: 1; flex: none; }
 .board { margin-top: 12px; display: flex; gap: 8px; align-items: center; background: #15203a; color: #ffc43a; border-radius: 8px; padding: 8px 10px; font-family: var(--font-code); font-size: 13px; }
 .board strong { font-size: 22px; letter-spacing: .12em; }
@@ -378,6 +379,7 @@ html.has-ad .sheet { padding-bottom: calc(20px + var(--adh, 0px) + env(safe-area
       <div>
         <h2 id="sheetName"></h2>
         <div class="sub" id="sheetSub"></div>
+        <a class="wiki" id="sheetWiki" target="_blank" rel="noopener noreferrer">Wikipediaで見る ↗</a>
       </div>
       <button type="button" class="close" id="sheetClose" aria-label="閉じる">×</button>
     </div>
@@ -919,6 +921,7 @@ ksBoot(function () {
     ui.sheetLv = a.status === "active" ? 3 : 1;
     el("sheetName").textContent = a.name;
     el("sheetSub").textContent = [a.alias, a.pref, a.category + "空港"].filter(Boolean).join("・");
+    el("sheetWiki").href = "https://ja.wikipedia.org/w/index.php?search=" + encodeURIComponent(a.name);
     el("sheetCode").textContent = a.iata || "----";
     el("sheetStatus").textContent = STATUS_LABEL[a.status];
     el("sheetBack").hidden = !ui.fromPref;
